@@ -3,7 +3,9 @@ name: Fincare Daily SMM Automation
 on:
   # Runs every day at 8:00 AM UTC (adjust to your timezone)
   schedule:
-    - cron: '0 8 * * 1-5'   # Monday to Friday, 8am UTC
+    - cron: '0 8 * * 1-5'   # Daily SMM pipeline: Mon–Fri 8am UTC
+    - cron: '0 9 * * 1-5'   # Performance stats check: Mon–Fri 9am UTC
+    - cron: '0 7 * * 1'     # Competitor spy: Monday 7am UTC
 
   # Also allows manual trigger from GitHub Actions tab
   workflow_dispatch:
@@ -57,3 +59,60 @@ jobs:
           name: smm-logs
           path: automation/logs/
           retention-days: 7
+
+  # ── Skill 8: Performance Tracker — runs daily at 9am UTC ──
+  check-performance:
+    name: Fetch LinkedIn Stats + Weekly Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Runs 1 hour after the main job — picks up yesterday's post stats
+    # Also sends Monday weekly performance report
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: automation
+        run: pip install -r requirements.txt
+
+      - name: Run stats check
+        working-directory: automation
+        env:
+          LINKEDIN_ACCESS_TOKEN:    ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_ORGANIZATION_ID: ${{ secrets.LINKEDIN_ORGANIZATION_ID }}
+          TELEGRAM_BOT_TOKEN:       ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:         ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -c "import sys; sys.path.insert(0,'.'); from src.performance_tracker import run_stats_check; run_stats_check()"
+
+  # ── Skill 5: Competitor Spy — runs every Monday at 7am UTC ──
+  competitor-spy:
+    name: Weekly Competitor Intelligence
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: automation
+        run: pip install -r requirements.txt
+
+      - name: Run competitor spy
+        working-directory: automation
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -c "import sys; sys.path.insert(0,'.'); from src.competitor_spy import run_competitor_spy; run_competitor_spy()"

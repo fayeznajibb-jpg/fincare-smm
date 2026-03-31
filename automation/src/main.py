@@ -21,6 +21,8 @@ from src.researcher import research_topic
 from src.writer import write_posts, rewrite_posts, write_posts_from_idea
 from src.telegram_bot import send_approval_request, wait_for_approval, send_notification
 from src.publisher import publish_all
+from src.post_scheduler import init_schedule_if_missing, get_optimal_schedule
+from src.performance_tracker import record_post
 
 logger = SecureLogger("main")
 
@@ -52,6 +54,10 @@ def run():
     logger.info("FINCARE SMM AUTOMATION — STARTING RUN")
     logger.info(f"Time: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')}")
     logger.info("=" * 50)
+
+    # ── Init skills ────────────────────────────────────
+    init_schedule_if_missing()
+    get_optimal_schedule()
 
     # ── Step 0: Validate environment ──────────────────
     is_valid, missing = validate_env_vars(REQUIRED_ENV_VARS)
@@ -180,9 +186,14 @@ def run():
         )
         sys.exit(1)
 
+    # ── Record post for performance tracking ──────────
+    urn = results.get("linkedin_company_urn")
+    if urn and urn != "posted":
+        record_post(urn, "linkedin_company", topic.get("topic", ""), topic.get("content_pillar", ""))
+
     # ── Step 6: Final report ───────────────────────────
-    succeeded = [k for k, v in results.items() if v]
-    failed    = [k for k, v in results.items() if not v]
+    succeeded = [k for k, v in results.items() if v and k != "linkedin_company_urn"]
+    failed    = [k for k, v in results.items() if not v and k != "linkedin_company_urn"]
 
     report = (
         "📊 <b>Fincare SMM — Daily Report</b>\n\n"

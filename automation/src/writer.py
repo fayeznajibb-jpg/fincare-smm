@@ -4,6 +4,7 @@ import anthropic
 from utils.logger import SecureLogger
 from utils.validators import validate_post_lengths, sanitize_content
 from src.trending_audio import get_tiktok_context
+from src.hashtag_intel import get_all_hashtags
 
 logger = SecureLogger("writer")
 
@@ -36,6 +37,9 @@ def write_posts(topic: dict) -> dict:
 
     # Get TikTok audio context (free, no API)
     tiktok_ctx = get_tiktok_context(pillar, emotional_trigger)
+
+    # Get this week's rotating hashtags (free, no API)
+    hashtags = get_all_hashtags()
 
     system_prompt = f"""
 You are the official social media copywriter for Fincare (aifincare.com).
@@ -74,6 +78,14 @@ Audio energy for today: {tiktok_ctx['audio_energy']}
 Script tip: {tiktok_ctx['script_tip']}
 Recommended sound mood: {tiktok_ctx['sound_suggestion']}
 Hashtags to use: {tiktok_ctx['hashtags']}
+
+════════════════════════════════════════
+HASHTAGS — USE EXACTLY AS PROVIDED
+════════════════════════════════════════
+Do NOT generate your own hashtags. Use only these pre-approved rotating sets:
+- hashtags_linkedin:  {hashtags['linkedin']}
+- hashtags_instagram: {hashtags['instagram']}
+- hashtags_tiktok:    {hashtags['tiktok']}
 
 Write the TikTok caption AND a short script note at the end in this format:
 [SCRIPT NOTE: energy={tiktok_ctx['audio_energy']} | {tiktok_ctx['script_tip']} | Sound: search "{tiktok_ctx['sound_search']}"]

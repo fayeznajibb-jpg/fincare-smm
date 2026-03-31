@@ -165,11 +165,14 @@ def post_linkedin_company(content: str, hashtags: str, image_path: str = None) -
             "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
         }
 
-    return _linkedin_post(token, payload, "company page")
+    return _linkedin_post(token, payload, "company page")  # returns URN or None
 
 
-def _linkedin_post(token: str, payload: dict, label: str) -> bool:
-    """Shared LinkedIn posting logic with error handling."""
+def _linkedin_post(token: str, payload: dict, label: str) -> str | None:
+    """
+    Shared LinkedIn posting logic. Returns the post URN on success, None on failure.
+    URN is captured from the x-restli-id response header for performance tracking.
+    """
     headers = {
         "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
@@ -185,16 +188,16 @@ def _linkedin_post(token: str, payload: dict, label: str) -> bool:
         )
 
         if resp.status_code in (200, 201):
-            logger.success(f"LinkedIn {label} posted successfully.")
-            return True
+            post_urn = resp.headers.get("x-restli-id", "")
+            logger.success(f"LinkedIn {label} posted successfully. URN: {post_urn[:40]}")
+            return post_urn or "posted"
         else:
-            # Log status code only — not the token
             logger.error(f"LinkedIn {label} failed. Status: {resp.status_code}")
-            return False
+            return None
 
     except requests.RequestException as e:
         logger.error(f"LinkedIn {label} request error: {type(e).__name__}")
-        return False
+        return None
 
 
 # ─────────────────────────────────────────
@@ -312,17 +315,20 @@ def publish_all(posts: dict, image_path: str = None) -> dict:
         logger.info(f"Image attached: {image_path}")
 
     results = {
-        "linkedin_company":  False,
-        "threads":           False,
-        "tiktok":            False,
+        "linkedin_company":     None,   # URN string on success, None on failure
+        "linkedin_company_urn": None,   # captured separately for performance tracking
+        "threads":              False,
+        "tiktok":               False,
     }
 
     # LinkedIn Company page only — no personal profile posting
-    results["linkedin_company"] = post_linkedin_company(
+    urn = post_linkedin_company(
         posts.get("linkedin_company", ""),
         posts.get("hashtags_linkedin", ""),
         image_path
     )
+    results["linkedin_company"]     = bool(urn)
+    results["linkedin_company_urn"] = urn
 
     # Threads
     threads_content = (
