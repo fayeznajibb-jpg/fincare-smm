@@ -312,20 +312,12 @@ def publish_all(posts: dict, image_path: str = None) -> dict:
         logger.info(f"Image attached: {image_path}")
 
     results = {
-        "linkedin_personal": False,
         "linkedin_company":  False,
         "threads":           False,
         "tiktok":            False,
     }
 
-    # LinkedIn Personal
-    results["linkedin_personal"] = post_linkedin_personal(
-        posts.get("linkedin_personal", ""),
-        posts.get("hashtags_linkedin", ""),
-        image_path
-    )
-
-    # LinkedIn Company
+    # LinkedIn Company page only — no personal profile posting
     results["linkedin_company"] = post_linkedin_company(
         posts.get("linkedin_company", ""),
         posts.get("hashtags_linkedin", ""),
