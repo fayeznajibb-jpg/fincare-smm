@@ -23,6 +23,8 @@ from src.telegram_bot import send_approval_request, wait_for_approval, send_noti
 from src.publisher import publish_all
 from src.post_scheduler import init_schedule_if_missing, get_optimal_schedule
 from src.performance_tracker import record_post
+from src.image_brief import send_image_brief
+from src.tiktok_script import send_tiktok_script
 
 logger = SecureLogger("main")
 
@@ -191,6 +193,18 @@ def run():
     if urn and urn != "posted":
         record_post(urn, "linkedin_company", topic.get("topic", ""), topic.get("content_pillar", ""))
 
+    # ── Skill 9: Image Brief ───────────────────────────
+    try:
+        send_image_brief(topic, posts)
+    except Exception as e:
+        logger.warning(f"Image brief failed (non-critical): {type(e).__name__}")
+
+    # ── Skill 11: TikTok Script ────────────────────────
+    try:
+        send_tiktok_script(topic, posts)
+    except Exception as e:
+        logger.warning(f"TikTok script failed (non-critical): {type(e).__name__}")
+
     # ── Step 6: Final report ───────────────────────────
     succeeded = [k for k, v in results.items() if v and k != "linkedin_company_urn"]
     failed    = [k for k, v in results.items() if not v and k != "linkedin_company_urn"]
@@ -202,7 +216,7 @@ def run():
     )
     if failed:
         report += f"⚠️ Skipped: {', '.join(failed)}\n"
-    report += "\n<i>TikTok draft saved — post manually.</i>"
+    report += "\n<i>🎨 Image brief + 🎬 TikTok script sent above.</i>"
 
     send_notification(report)
     logger.success("Run complete.")
