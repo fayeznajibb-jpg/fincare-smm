@@ -25,6 +25,7 @@ from src.post_scheduler import init_schedule_if_missing, get_optimal_schedule
 from src.performance_tracker import record_post
 from src.image_brief import send_image_brief
 from src.tiktok_script import send_tiktok_script
+from src.weekly_calendar import mark_day_posted
 
 logger = SecureLogger("main")
 
@@ -192,6 +193,12 @@ def run():
     urn = results.get("linkedin_company_urn")
     if urn and urn != "posted":
         record_post(urn, "linkedin_company", topic.get("topic", ""), topic.get("content_pillar", ""))
+
+    # ── Mark today as posted in weekly calendar ────────
+    try:
+        mark_day_posted(datetime.now().strftime("%A"))
+    except Exception:
+        pass
 
     # ── Skill 9: Image Brief ───────────────────────────
     try:

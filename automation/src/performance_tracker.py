@@ -215,7 +215,7 @@ def send_weekly_performance_report():
 def run_stats_check():
     """
     Main orchestrator called by GitHub Actions daily at 9am UTC.
-    Fetches pending stats + sends weekly report on Mondays.
+    Fetches pending stats + sends weekly report on Mondays + monthly report on 1st.
     """
     logger.step("Running stats check...")
     updated = check_pending_stats()
@@ -224,3 +224,7 @@ def run_stats_check():
     if datetime.now().weekday() == 0:  # Monday
         logger.step("Monday detected — sending weekly performance report...")
         send_weekly_performance_report()
+
+    # Monthly report on the 1st of each month
+    from src.monthly_report import run_monthly_report_if_due
+    run_monthly_report_if_due()
