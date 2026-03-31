@@ -22,9 +22,9 @@ def _api(token: str, method: str, payload: dict = None) -> dict:
         raise
 
 
-def send_approval_request(topic: dict, posts: dict) -> str:
+def send_approval_request(topic: dict, posts: dict, image_path: str = None) -> str:
     """
-    Sends a formatted post preview to Telegram with Approve/Reject buttons.
+    Sends a formatted post preview to Telegram with action buttons.
     Returns a unique session_id used to match the callback response.
     Security: each session has a unique ID to prevent replay attacks.
     """
@@ -36,7 +36,7 @@ def send_approval_request(topic: dict, posts: dict) -> str:
 
     session_id = str(uuid.uuid4())[:8]  # Short unique ID for this run
 
-    message = _build_preview_message(topic, posts)
+    message = _build_preview_message(topic, posts, image_path)
 
     keyboard = {
         "inline_keyboard": [
@@ -47,6 +47,9 @@ def send_approval_request(topic: dict, posts: dict) -> str:
             [
                 {"text": "✏️ Edit — Give Feedback", "callback_data": f"edit_{session_id}"},
                 {"text": "💡 My Idea — I'll Set the Topic", "callback_data": f"idea_{session_id}"}
+            ],
+            [
+                {"text": "🖼️ Add Image", "callback_data": f"image_{session_id}"}
             ]
         ]
     }
@@ -143,13 +146,32 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
                     waiting_for_text = "idea"
                     logger.info("User requested own IDEA — waiting for topic text...")
 
-            # Handle text reply
+                elif data == f"image_{session_id}":
+                    _answer_callback(token, callback["id"], "🖼️ Send me the image!")
+                    send_notification("🖼️ <b>Send me the image</b> you want to attach to this post.\n\nJust send it as a photo in this chat.")
+                    waiting_for_text = "image"
+                    logger.info("User requested image — waiting for photo...")
+
+            # Handle text and photo replies
             if "message" in update:
                 msg = update["message"]
                 from_chat = str(msg.get("chat", {}).get("id", ""))
                 text = msg.get("text", "").strip()
 
                 if not validate_telegram_chat_id(from_chat, expected_chat_id):
+                    continue
+
+                # Handle photo upload when waiting for image
+                if waiting_for_text == "image" and "photo" in msg:
+                    photo = msg["photo"][-1]  # Largest available size
+                    file_id = photo["file_id"]
+                    try:
+                        image_path = _download_telegram_photo(token, file_id)
+                        logger.success(f"Image downloaded: {image_path}")
+                        return False, f"IMAGE: {image_path}"
+                    except Exception as e:
+                        logger.error(f"Image download failed: {type(e).__name__}")
+                        send_notification("⚠️ Couldn't download image. Please try again or skip.")
                     continue
 
                 # If we're waiting for edit feedback or idea text
@@ -204,6 +226,27 @@ def send_notification(message: str):
             logger.warning("Telegram notification failed silently — continuing.")
 
 
+def _download_telegram_photo(token: str, file_id: str) -> str:
+    """Downloads a photo from Telegram and saves it to a temp file. Returns the file path."""
+    import tempfile
+
+    result = _api(token, "getFile", {"file_id": file_id})
+    file_path = result["result"]["file_path"]
+    ext = file_path.split(".")[-1] if "." in file_path else "jpg"
+
+    url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+    resp = requests.get(url, timeout=30)
+    resp.raise_for_status()
+
+    os.makedirs("drafts/images", exist_ok=True)
+    from datetime import datetime
+    local_path = f"drafts/images/post_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
+    with open(local_path, "wb") as f:
+        f.write(resp.content)
+
+    return local_path
+
+
 def _answer_callback(token: str, callback_id: str, text: str):
     """Sends a response to a Telegram callback query (dismisses the loading state)."""
     try:
@@ -215,7 +258,7 @@ def _answer_callback(token: str, callback_id: str, text: str):
         pass  # Non-critical
 
 
-def _build_preview_message(topic: dict, posts: dict) -> str:
+def _build_preview_message(topic: dict, posts: dict, image_path: str = None) -> str:
     """Builds a formatted Telegram preview of all posts for approval."""
 
     linkedin_p = posts.get("linkedin_personal", "")
@@ -225,15 +268,17 @@ def _build_preview_message(topic: dict, posts: dict) -> str:
     threads    = posts.get("threads_post", "")
 
     def preview(text: str, limit: int = 300) -> str:
-        """Returns a truncated preview of text."""
         return text[:limit] + "..." if len(text) > limit else text
+
+    image_line = f"\n<b>🖼️ IMAGE:</b> ✅ Attached ({os.path.basename(image_path)})\n" if image_path else ""
 
     msg = (
         f"<b>🤖 FINCARE — DAILY POST APPROVAL</b>\n"
         f"{'─' * 35}\n\n"
         f"<b>📌 TOPIC:</b> {topic.get('topic', '')}\n"
         f"<b>🎯 ANGLE:</b> {topic.get('angle', '')}\n"
-        f"<b>📊 KEY STAT:</b> {topic.get('key_stat', '')}\n\n"
+        f"<b>📊 KEY STAT:</b> {topic.get('key_stat', '')}\n"
+        f"{image_line}\n"
         f"{'─' * 35}\n\n"
 
         f"<b>💼 LINKEDIN (Personal — {len(linkedin_p)} chars):</b>\n"
@@ -252,7 +297,7 @@ def _build_preview_message(topic: dict, posts: dict) -> str:
         f"{preview(threads, 200)}\n\n"
 
         f"{'─' * 35}\n"
-        f"<i>Tap a button below to approve or reject.</i>"
+        f"<i>Tap a button below.</i>"
     )
 
     return msg

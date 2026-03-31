@@ -91,16 +91,17 @@ def run():
     # Save draft as backup
     save_draft(topic, posts)
 
-    # ── Steps 3 & 4: Approval loop (supports Edit + My Idea rewrites) ──
+    # ── Steps 3 & 4: Approval loop (supports Edit, My Idea, Image) ──
     timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))
     MAX_REWRITES = 3
     rewrites = 0
     approved = False
+    image_path = None  # Set when user attaches an image
 
     while rewrites <= MAX_REWRITES:
         logger.info(f"STEP 3: Sending for Telegram approval (attempt {rewrites + 1})...")
         try:
-            session_id = send_approval_request(topic, posts)
+            session_id = send_approval_request(topic, posts, image_path)
         except Exception as e:
             logger.error(f"Telegram send failed: {type(e).__name__}: {str(e)}")
             sys.exit(1)
@@ -115,6 +116,13 @@ def run():
         # ── Approved ──────────────────────────────────
         if approved:
             break
+
+        # ── Image attached: re-show preview with image ─
+        if feedback.startswith("IMAGE:"):
+            image_path = feedback[6:].strip()
+            logger.info(f"Image attached: {image_path}")
+            send_notification("🖼️ <b>Image attached!</b> Here's the updated preview — approve when ready.")
+            continue  # Re-send approval with image shown
 
         # ── Edit: rewrite with feedback ───────────────
         if feedback.startswith("EDIT:"):
@@ -162,7 +170,7 @@ def run():
     # ── Step 5: Publish ────────────────────────────────
     logger.info("STEP 5: Publishing to all platforms...")
     try:
-        results = publish_all(posts)
+        results = publish_all(posts, image_path)
     except Exception as e:
         logger.error(f"Publishing failed: {type(e).__name__}: {str(e)}")
         send_notification(

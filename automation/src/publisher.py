@@ -14,8 +14,68 @@ THREADS_API   = "https://graph.threads.net/v1.0"
 # LINKEDIN
 # ─────────────────────────────────────────
 
-def post_linkedin_personal(content: str, hashtags: str) -> bool:
-    """Posts to LinkedIn personal profile."""
+def _linkedin_upload_image(token: str, author_urn: str, image_path: str) -> str | None:
+    """
+    Uploads an image to LinkedIn and returns the asset URN.
+    Two-step: register upload → PUT binary.
+    Returns asset URN string or None on failure.
+    """
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+
+    # Step 1: Register upload
+    register_payload = {
+        "registerUploadRequest": {
+            "recipes": ["urn:li:digitalmediaRecipe:feedshare-image"],
+            "owner": author_urn,
+            "serviceRelationships": [{
+                "relationshipType": "OWNER",
+                "identifier": "urn:li:userGeneratedContent"
+            }]
+        }
+    }
+
+    try:
+        reg_resp = requests.post(
+            f"{LINKEDIN_API}/assets?action=registerUpload",
+            headers=headers,
+            json=register_payload,
+            timeout=15
+        )
+        if reg_resp.status_code != 200:
+            logger.error(f"LinkedIn image register failed. Status: {reg_resp.status_code}")
+            return None
+
+        reg_data = reg_resp.json()
+        upload_url = reg_data["value"]["uploadMechanism"]["com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest"]["uploadUrl"]
+        asset_urn  = reg_data["value"]["asset"]
+
+        # Step 2: Upload binary
+        with open(image_path, "rb") as img_file:
+            upload_resp = requests.put(
+                upload_url,
+                data=img_file,
+                headers={"Authorization": f"Bearer {token}"},
+                timeout=60
+            )
+
+        if upload_resp.status_code in (200, 201):
+            logger.success(f"LinkedIn image uploaded: {asset_urn}")
+            return asset_urn
+        else:
+            logger.error(f"LinkedIn image upload failed. Status: {upload_resp.status_code}")
+            return None
+
+    except Exception as e:
+        logger.error(f"LinkedIn image upload error: {type(e).__name__}")
+        return None
+
+
+def post_linkedin_personal(content: str, hashtags: str, image_path: str = None) -> bool:
+    """Posts to LinkedIn personal profile, optionally with an image."""
     token     = os.getenv("LINKEDIN_ACCESS_TOKEN")
     person_id = os.getenv("LINKEDIN_PERSON_ID")
 
@@ -23,27 +83,46 @@ def post_linkedin_personal(content: str, hashtags: str) -> bool:
         logger.warning("LinkedIn personal credentials missing — skipping.")
         return False
 
-    full_text = f"{content}\n\n{hashtags}".strip()
+    full_text  = f"{content}\n\n{hashtags}".strip()
+    author_urn = f"urn:li:person:{person_id}"
 
-    payload = {
-        "author": f"urn:li:person:{person_id}",
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": full_text},
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+    asset_urn = _linkedin_upload_image(token, author_urn, image_path) if image_path else None
+
+    if asset_urn:
+        payload = {
+            "author": author_urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {"text": full_text},
+                    "shareMediaCategory": "IMAGE",
+                    "media": [{
+                        "status": "READY",
+                        "media": asset_urn,
+                        "title": {"text": ""}
+                    }]
+                }
+            },
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
         }
-    }
+    else:
+        payload = {
+            "author": author_urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {"text": full_text},
+                    "shareMediaCategory": "NONE"
+                }
+            },
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+        }
 
     return _linkedin_post(token, payload, "personal profile")
 
 
-def post_linkedin_company(content: str, hashtags: str) -> bool:
-    """Posts to LinkedIn company page."""
+def post_linkedin_company(content: str, hashtags: str, image_path: str = None) -> bool:
+    """Posts to LinkedIn company page, optionally with an image."""
     token   = os.getenv("LINKEDIN_ACCESS_TOKEN")
     org_id  = os.getenv("LINKEDIN_ORGANIZATION_ID")
 
@@ -51,21 +130,40 @@ def post_linkedin_company(content: str, hashtags: str) -> bool:
         logger.warning("LinkedIn company credentials missing — skipping.")
         return False
 
-    full_text = f"{content}\n\n{hashtags}".strip()
+    full_text  = f"{content}\n\n{hashtags}".strip()
+    author_urn = f"urn:li:organization:{org_id}"
 
-    payload = {
-        "author": f"urn:li:organization:{org_id}",
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": full_text},
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {
-            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+    asset_urn = _linkedin_upload_image(token, author_urn, image_path) if image_path else None
+
+    if asset_urn:
+        payload = {
+            "author": author_urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {"text": full_text},
+                    "shareMediaCategory": "IMAGE",
+                    "media": [{
+                        "status": "READY",
+                        "media": asset_urn,
+                        "title": {"text": ""}
+                    }]
+                }
+            },
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
         }
-    }
+    else:
+        payload = {
+            "author": author_urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {"text": full_text},
+                    "shareMediaCategory": "NONE"
+                }
+            },
+            "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+        }
 
     return _linkedin_post(token, payload, "company page")
 
@@ -203,12 +301,15 @@ def _save_tiktok_draft(content: str):
 # PUBLISH ALL
 # ─────────────────────────────────────────
 
-def publish_all(posts: dict) -> dict:
+def publish_all(posts: dict, image_path: str = None) -> dict:
     """
     Publishes approved posts to all platforms.
+    Optionally attaches an image to LinkedIn posts.
     Returns a results dict showing success/failure per platform.
     """
     logger.step("Starting publishing to all platforms...")
+    if image_path:
+        logger.info(f"Image attached: {image_path}")
 
     results = {
         "linkedin_personal": False,
@@ -220,13 +321,15 @@ def publish_all(posts: dict) -> dict:
     # LinkedIn Personal
     results["linkedin_personal"] = post_linkedin_personal(
         posts.get("linkedin_personal", ""),
-        posts.get("hashtags_linkedin", "")
+        posts.get("hashtags_linkedin", ""),
+        image_path
     )
 
     # LinkedIn Company
     results["linkedin_company"] = post_linkedin_company(
         posts.get("linkedin_company", ""),
-        posts.get("hashtags_linkedin", "")
+        posts.get("hashtags_linkedin", ""),
+        image_path
     )
 
     # Threads
