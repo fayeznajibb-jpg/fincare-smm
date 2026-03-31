@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+__pycache__/
+*.pyc
+*.pyo
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs and runtime data
+automation/logs/
+automation/drafts/
+
+# Large media and presentations
+*.pptx
+*.key
+*.numbers
+*.xlsx
+*.docx
+*.zip
+*.mp3
+*.mp4
+*.mov
+FinCare_Presentation/
+Music /
+fincare-video/
+fincare-video 2/
+
+# Python virtual environments
+venv/
+.venv/
