@@ -209,14 +209,36 @@ def _generate_hook(keyword: str) -> str:
     return hooks.get(keyword, "Your brain is your biggest investing risk. Here's proof.")
 
 
+CONTENT_PILLARS = {
+    0: {"name": "STORY",   "day": "Monday"},
+    1: {"name": "DATA",    "day": "Tuesday"},
+    2: {"name": "OPINION", "day": "Wednesday"},
+    3: {"name": "QUESTION","day": "Thursday"},
+    4: {"name": "INSIGHT", "day": "Friday"},
+    5: {"name": "STORY",   "day": "Saturday"},   # Weekend fallback
+    6: {"name": "DATA",    "day": "Sunday"},
+}
+
+
+def get_todays_pillar() -> dict:
+    """Returns today's content pillar based on day of week."""
+    weekday = datetime.now().weekday()  # 0=Monday, 6=Sunday
+    pillar = CONTENT_PILLARS[weekday]
+    logger.info(f"Today's content pillar: {pillar['name']} ({pillar['day']})")
+    return pillar
+
+
 def research_topic() -> dict:
     """
     Main research function.
     Step 1: Try free RSS feeds.
     Step 2: If RSS fails or no match, use a pre-written fallback topic.
+    Adds today's content pillar to the topic dict.
     No API calls — zero cost.
     """
     logger.step("Starting topic research (free RSS method)...")
+
+    pillar = get_todays_pillar()
 
     headlines = _fetch_rss_headlines()
     logger.info(f"Total headlines fetched: {len(headlines)}")
@@ -224,13 +246,15 @@ def research_topic() -> dict:
     if headlines:
         topic = _match_topic_from_headlines(headlines)
         if topic:
+            topic["content_pillar"] = pillar["name"]
             return topic
         logger.warning("Headlines fetched but no keyword match found — using fallback.")
     else:
         logger.warning("All RSS feeds failed — using fallback topic.")
 
-    # Use a random fallback topic (rotates daily variety)
+    # Use a rotating fallback topic
     day_index = datetime.now().timetuple().tm_yday % len(FALLBACK_TOPICS)
     topic = FALLBACK_TOPICS[day_index]
-    logger.success(f"Using fallback topic: {topic['topic']}")
+    topic["content_pillar"] = pillar["name"]
+    logger.success(f"Using fallback topic: {topic['topic']} | Pillar: {pillar['name']}")
     return topic

@@ -1,0 +1,122 @@
+== FINCARE ENGAGEMENT BAIT TEMPLATES ==
+These are platform-specific structures proven to drive comments, saves, and shares.
+The writer MUST apply the correct template for each platform based on today's pillar.
+
+════════════════════════════════════════
+LINKEDIN — ENGAGEMENT TEMPLATES
+════════════════════════════════════════
+
+TEMPLATE L1 — THE CONFESSION OPENER (best for STORY pillar)
+Format:
+  "I used to [embarrassing/relatable investing behaviour].
+   Then I learned [the reframe].
+   Here's what changed — and what the data says about why it happens to almost everyone."
+Why it works: Professional audiences engage with vulnerability + data combo.
+CTA: "Has this happened to you? Drop a comment — more common than you think."
+
+TEMPLATE L2 — THE CONTROVERSIAL TAKE (best for OPINION pillar)
+Format:
+  "Unpopular opinion: [bold claim about investing behaviour].
+   [3-4 lines defending the position with data]
+   I know this will divide people. Tell me where I'm wrong."
+Why it works: LinkedIn's algorithm boosts posts with comment debate.
+CTA: "Agree or disagree? I read every reply."
+
+TEMPLATE L3 — THE NUMBERED INSIGHT LIST (best for DATA pillar)
+Format:
+  "[Hook stat that shocks]
+   Here are [3-5] things the data reveals about investor behaviour that most people ignore:
+   1. [Surprising insight]
+   2. [Surprising insight]
+   3. [Surprising insight]
+   Which one surprised you most?"
+Why it works: Lists get saved. Saves boost reach. Question drives comments.
+CTA: "Save this. Share it with someone who needs to hear #[number]."
+
+TEMPLATE L4 — THE OPEN QUESTION (best for QUESTION pillar)
+Format:
+  "[1-2 lines of setup that create tension]
+   Genuine question for anyone who invests:
+   [The question]
+   No right answer. I'm curious what's actually happening out there."
+Why it works: Direct questions feel personal. They beg a response.
+CTA: The question IS the CTA — no additional line needed.
+
+TEMPLATE L5 — THE MENTAL MODEL (best for INSIGHT pillar)
+Format:
+  "The [name of mental model] — and why it explains almost every investing mistake.
+   [Explain the model in 3-4 punchy lines]
+   How to use it: [1-2 lines of practical application]
+   Save this for the next time you feel the urge to react to the market."
+Why it works: Mental models get saved and reshared. They position Fincare as the educator.
+CTA: "Tag someone who needs this mental model right now."
+
+════════════════════════════════════════
+INSTAGRAM — ENGAGEMENT TEMPLATES
+════════════════════════════════════════
+
+TEMPLATE I1 — THE "DROP X IN COMMENTS" CTA
+Always end Instagram captions with one of these CTAs (rotate weekly):
+- "Drop ANGEL in the comments if this hit different 👇"
+- "Comment CALM if you've felt this before 👇"
+- "Type YES if you needed to hear this today 👇"
+- "Save this for the next time the market moves against you."
+- "Tag the person in your life who needs to see this."
+Why it works: Specific word CTAs boost comment count which boosts reach.
+
+TEMPLATE I2 — CAROUSEL HOOK STRUCTURE
+Slide 1 (hook): Must stop the scroll. Under 8 words. Punchy. Creates curiosity gap.
+Slide 2 (problem): The relatable struggle. "You've felt this..."
+Slide 3 (data): The stat that validates the struggle.
+Slide 4 (reframe): The insight that changes perspective.
+Slide 5 (solution): Where Fincare fits in.
+Slide 6 (action): What to do right now.
+Slide 7 (CTA): "Follow for more" + "Drop ANGEL below"
+
+TEMPLATE I3 — THE BEFORE/AFTER FORMAT
+"Before Fincare: [relatable bad behaviour]
+ After Fincare: [the better outcome]"
+Simple. Scrollable. Shareable.
+
+════════════════════════════════════════
+THREADS — ENGAGEMENT TEMPLATES
+════════════════════════════════════════
+
+TEMPLATE T1 — THE HOT TAKE (best for OPINION pillar)
+Format: "[Bold 1-line claim]. [1-2 lines of supporting point]. Fight me in the replies."
+Why it works: Threads rewards debate. Controversial = replies = reach.
+
+TEMPLATE T2 — THE MICRO-STORY (best for STORY pillar)
+Format: "[3-4 very short lines telling a story]. The end. [question]"
+Each line = one thought. No more.
+
+TEMPLATE T3 — THE DATA DROP (best for DATA pillar)
+Format: "[Stat]. [What it means in 1 sentence]. [Question to reader]."
+Maximum 3 lines. Under 300 chars total.
+
+TEMPLATE T4 — THE GENUINE QUESTION (best for QUESTION pillar)
+Format: "[1 line setup]. Genuine question: [the question]."
+No hashtags. No emojis. Raw. Conversational.
+
+TEMPLATE T5 — THE QUOTABLE (best for INSIGHT pillar)
+Format: "[The insight as a single memorable sentence]. [1 line expanding it]. Save that."
+Should be screenshot-worthy. Under 200 chars.
+
+════════════════════════════════════════
+TIKTOK — ENGAGEMENT TEMPLATES
+════════════════════════════════════════
+
+TEMPLATE TK1 — THE POV FORMAT
+"POV: You just checked your portfolio and it's down [X]%.
+ Here's what your brain is doing right now — and why it's about to make things worse."
+Always start TikTok captions with POV: for max hook rate.
+
+TEMPLATE TK2 — THE STITCH/DUET BAIT
+"Anyone else [relatable investing behaviour]? Because the data says [stat].
+ Comment your worst investing decision. I'll reply to all of them."
+Drives comment engagement which TikTok's algorithm rewards heavily.
+
+TEMPLATE TK3 — THE SERIES HOOK
+"Part [X] of things your financial advisor won't tell you: [insight]
+ Follow so you don't miss Part [X+1]."
+Creates serial engagement and follow incentive.

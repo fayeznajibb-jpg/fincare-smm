@@ -278,6 +278,7 @@ def _build_preview_message(topic: dict, posts: dict, image_path: str = None) -> 
         f"<b>📌 TOPIC:</b> {topic.get('topic', '')}\n"
         f"<b>🎯 ANGLE:</b> {topic.get('angle', '')}\n"
         f"<b>📊 KEY STAT:</b> {topic.get('key_stat', '')}\n"
+        f"<b>🏛️ PILLAR:</b> {topic.get('content_pillar', '—')} | <b>⚡ TRIGGER:</b> {topic.get('emotional_trigger', '—')}\n"
         f"{image_line}\n"
         f"{'─' * 35}\n\n"
 

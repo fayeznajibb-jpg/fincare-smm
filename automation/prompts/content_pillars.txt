@@ -1,0 +1,72 @@
+== FINCARE CONTENT PILLARS ==
+Rotate through these 5 pillars weekly. Each post must belong to exactly one pillar.
+The pillar determines the FORMAT and PURPOSE of the post — not the topic.
+
+════════════════════════════════════════
+PILLAR 1 — STORY (Monday)
+════════════════════════════════════════
+PURPOSE: Build emotional connection. Make the audience feel seen.
+FORMAT:
+  - Opens with a specific, relatable scenario ("It's Sunday night. Markets open tomorrow...")
+  - Takes the reader through a mini emotional journey
+  - Ends with a reframe or insight
+  - CTA: "Has this happened to you? Drop a comment."
+TONE: Warm, empathetic, personal. Like a friend telling a story.
+WHAT IT LOOKS LIKE: A 3-act micro-story. Setup → Tension → Resolution.
+AVOID: Data overload. This pillar is FEELING first, facts second.
+
+════════════════════════════════════════
+PILLAR 2 — DATA (Tuesday)
+════════════════════════════════════════
+PURPOSE: Build authority and trust. Educate with numbers that surprise.
+FORMAT:
+  - Opens with the most shocking stat (the "wait, really?" moment)
+  - Unpacks what it means in plain English
+  - Connects the data to a behaviour pattern the reader recognises
+  - CTA: "Save this for the next time you feel the urge to react."
+TONE: Sharp, confident, authoritative. Like a smart analyst who actually explains things.
+WHAT IT LOOKS LIKE: Stat → Context → Implication → Fincare angle.
+AVOID: Dry data dumps. Every number needs a human translation.
+
+════════════════════════════════════════
+PILLAR 3 — OPINION (Wednesday)
+════════════════════════════════════════
+PURPOSE: Spark debate. Stand for something. Build a point of view.
+FORMAT:
+  - Opens with a bold, slightly controversial statement
+  - Defends the position with evidence
+  - Acknowledges the opposing view fairly
+  - Holds the position anyway
+  - CTA: "Agree or disagree? Tell me below."
+TONE: Direct, opinionated, unapologetic — but never arrogant.
+WHAT IT LOOKS LIKE: "Unpopular opinion: [claim]. Here's why I stand by it."
+AVOID: Wishy-washy hedging. This pillar must take a clear side.
+NOTE: Always frame as observation, never financial advice.
+
+════════════════════════════════════════
+PILLAR 4 — QUESTION (Thursday)
+════════════════════════════════════════
+PURPOSE: Drive comments and engagement. Start a conversation.
+FORMAT:
+  - Opens with a question that creates self-reflection
+  - Adds a stat or insight that reframes the question
+  - Asks for a genuine response
+  - Keep it SHORT — this is the most concise pillar
+  - CTA: The question itself IS the CTA.
+TONE: Curious, open, conversational. No lecturing.
+WHAT IT LOOKS LIKE: A thought-provoking question + short context + space for the audience to answer.
+AVOID: Rhetorical questions with obvious answers. The question must genuinely invite response.
+
+════════════════════════════════════════
+PILLAR 5 — INSIGHT (Friday)
+════════════════════════════════════════
+PURPOSE: Deliver one powerful, reusable mental model. Something they'll screenshot and save.
+FORMAT:
+  - Opens with the counter-intuitive insight ("Most people think X. The opposite is true.")
+  - Explains the mental model clearly
+  - Shows how to apply it to their investing decisions
+  - Ends with a memorable one-liner they'll repeat
+  - CTA: "Save this. You'll need it next time the market moves."
+TONE: Wise, thoughtful, mentor-like. Like advice from someone who's been through it all.
+WHAT IT LOOKS LIKE: A lesson wrapped in a story. The takeaway should be quotable.
+AVOID: Generic advice. This pillar must deliver a genuinely non-obvious idea.

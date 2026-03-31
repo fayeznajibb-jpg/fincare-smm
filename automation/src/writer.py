@@ -3,6 +3,7 @@ import json
 import anthropic
 from utils.logger import SecureLogger
 from utils.validators import validate_post_lengths, sanitize_content
+from src.trending_audio import get_tiktok_context
 
 logger = SecureLogger("writer")
 
@@ -19,15 +20,63 @@ def write_posts(topic: dict) -> dict:
     if not api_key:
         raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
 
-    # Load brand voice
-    voice_path = os.path.join(os.path.dirname(__file__), '..', 'prompts', 'brand_voice.txt')
-    with open(voice_path, 'r', encoding='utf-8') as f:
+    # Load brand voice, hook library, and content pillars
+    base = os.path.join(os.path.dirname(__file__), '..', 'prompts')
+    with open(os.path.join(base, 'brand_voice.txt'), 'r', encoding='utf-8') as f:
         brand_voice = f.read()
+    with open(os.path.join(base, 'hook_library.txt'), 'r', encoding='utf-8') as f:
+        hook_library = f.read()
+    with open(os.path.join(base, 'content_pillars.txt'), 'r', encoding='utf-8') as f:
+        content_pillars = f.read()
+    with open(os.path.join(base, 'engagement_templates.txt'), 'r', encoding='utf-8') as f:
+        engagement_templates = f.read()
+
+    pillar = topic.get("content_pillar", "STORY")
+    emotional_trigger = topic.get("emotional_trigger", "fear")
+
+    # Get TikTok audio context (free, no API)
+    tiktok_ctx = get_tiktok_context(pillar, emotional_trigger)
 
     system_prompt = f"""
 You are the official social media copywriter for Fincare (aifincare.com).
 
 {brand_voice}
+
+════════════════════════════════════════
+TODAY'S CONTENT PILLAR: {pillar}
+════════════════════════════════════════
+{content_pillars}
+
+Read the full pillar definitions above. Today's pillar is {pillar}.
+Every post MUST follow the format, tone, and CTA structure defined for the {pillar} pillar.
+
+════════════════════════════════════════
+HOOK LIBRARY
+════════════════════════════════════════
+{hook_library}
+
+Today's emotional trigger is: {emotional_trigger.upper()}
+Select hooks from the {emotional_trigger.upper()} section above as inspiration.
+NEVER copy a hook verbatim — adapt it to the specific topic and stat.
+The hook sets the opening line for LinkedIn personal, Instagram, and TikTok posts.
+
+════════════════════════════════════════
+ENGAGEMENT TEMPLATES
+════════════════════════════════════════
+{engagement_templates}
+
+Apply the correct engagement template for each platform based on the {pillar} pillar.
+
+════════════════════════════════════════
+TIKTOK AUDIO & SCRIPT CONTEXT
+════════════════════════════════════════
+Audio energy for today: {tiktok_ctx['audio_energy']}
+Script tip: {tiktok_ctx['script_tip']}
+Recommended sound mood: {tiktok_ctx['sound_suggestion']}
+Hashtags to use: {tiktok_ctx['hashtags']}
+
+Write the TikTok caption AND a short script note at the end in this format:
+[SCRIPT NOTE: energy={tiktok_ctx['audio_energy']} | {tiktok_ctx['script_tip']} | Sound: search "{tiktok_ctx['sound_search']}"]
 
 == YOUR TASK ==
 Write social media posts for ALL platforms based on the topic provided.
