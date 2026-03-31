@@ -1,0 +1,250 @@
+import os
+import requests
+from utils.logger import SecureLogger
+from utils.validators import is_safe_url
+
+logger = SecureLogger("publisher")
+
+LINKEDIN_API  = "https://api.linkedin.com/v2"
+TIKTOK_API    = "https://open.tiktokapis.com/v2"
+THREADS_API   = "https://graph.threads.net/v1.0"
+
+
+# ─────────────────────────────────────────
+# LINKEDIN
+# ─────────────────────────────────────────
+
+def post_linkedin_personal(content: str, hashtags: str) -> bool:
+    """Posts to LinkedIn personal profile."""
+    token     = os.getenv("LINKEDIN_ACCESS_TOKEN")
+    person_id = os.getenv("LINKEDIN_PERSON_ID")
+
+    if not token or not person_id:
+        logger.warning("LinkedIn personal credentials missing — skipping.")
+        return False
+
+    full_text = f"{content}\n\n{hashtags}".strip()
+
+    payload = {
+        "author": f"urn:li:person:{person_id}",
+        "lifecycleState": "PUBLISHED",
+        "specificContent": {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {"text": full_text},
+                "shareMediaCategory": "NONE"
+            }
+        },
+        "visibility": {
+            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+        }
+    }
+
+    return _linkedin_post(token, payload, "personal profile")
+
+
+def post_linkedin_company(content: str, hashtags: str) -> bool:
+    """Posts to LinkedIn company page."""
+    token   = os.getenv("LINKEDIN_ACCESS_TOKEN")
+    org_id  = os.getenv("LINKEDIN_ORGANIZATION_ID")
+
+    if not token or not org_id:
+        logger.warning("LinkedIn company credentials missing — skipping.")
+        return False
+
+    full_text = f"{content}\n\n{hashtags}".strip()
+
+    payload = {
+        "author": f"urn:li:organization:{org_id}",
+        "lifecycleState": "PUBLISHED",
+        "specificContent": {
+            "com.linkedin.ugc.ShareContent": {
+                "shareCommentary": {"text": full_text},
+                "shareMediaCategory": "NONE"
+            }
+        },
+        "visibility": {
+            "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+        }
+    }
+
+    return _linkedin_post(token, payload, "company page")
+
+
+def _linkedin_post(token: str, payload: dict, label: str) -> bool:
+    """Shared LinkedIn posting logic with error handling."""
+    headers = {
+        "Authorization": f"Bearer {token}",
+        "Content-Type": "application/json",
+        "X-Restli-Protocol-Version": "2.0.0"
+    }
+
+    try:
+        resp = requests.post(
+            f"{LINKEDIN_API}/ugcPosts",
+            headers=headers,
+            json=payload,
+            timeout=15
+        )
+
+        if resp.status_code in (200, 201):
+            logger.success(f"LinkedIn {label} posted successfully.")
+            return True
+        else:
+            # Log status code only — not the token
+            logger.error(f"LinkedIn {label} failed. Status: {resp.status_code}")
+            return False
+
+    except requests.RequestException as e:
+        logger.error(f"LinkedIn {label} request error: {type(e).__name__}")
+        return False
+
+
+# ─────────────────────────────────────────
+# THREADS
+# ─────────────────────────────────────────
+
+def post_threads(content: str) -> bool:
+    """
+    Posts a text post to Threads.
+    Two-step process: create container → publish.
+    """
+    token   = os.getenv("THREADS_ACCESS_TOKEN")
+    user_id = os.getenv("THREADS_USER_ID")
+
+    if not token or not user_id:
+        logger.warning("Threads credentials missing — skipping.")
+        return False
+
+    try:
+        # Step 1: Create media container
+        container_resp = requests.post(
+            f"{THREADS_API}/{user_id}/threads",
+            params={
+                "media_type": "TEXT",
+                "text": content,
+                "access_token": token
+            },
+            timeout=15
+        )
+
+        if container_resp.status_code != 200:
+            logger.error(f"Threads container creation failed. Status: {container_resp.status_code}")
+            return False
+
+        container_data = container_resp.json()
+        container_id = container_data.get("id")
+
+        if not container_id:
+            logger.error("Threads container ID not returned.")
+            return False
+
+        # Brief pause before publishing (Meta recommendation)
+        import time
+        time.sleep(3)
+
+        # Step 2: Publish the container
+        publish_resp = requests.post(
+            f"{THREADS_API}/{user_id}/threads_publish",
+            params={
+                "creation_id": container_id,
+                "access_token": token
+            },
+            timeout=15
+        )
+
+        if publish_resp.status_code == 200:
+            logger.success("Threads post published successfully.")
+            return True
+        else:
+            logger.error(f"Threads publish failed. Status: {publish_resp.status_code}")
+            return False
+
+    except requests.RequestException as e:
+        logger.error(f"Threads request error: {type(e).__name__}")
+        return False
+
+
+# ─────────────────────────────────────────
+# TIKTOK
+# ─────────────────────────────────────────
+
+def post_tiktok_text(content: str) -> bool:
+    """
+    TikTok does not support text-only posts via API.
+    This function logs a reminder to post manually until
+    Remotion video generation is integrated in Phase 2.
+    """
+    logger.warning(
+        "TikTok requires video content via API. "
+        "Text-only posting is not supported. "
+        "Please post manually until Remotion integration is complete (Phase 2)."
+    )
+
+    # Save TikTok content to drafts for manual posting
+    _save_tiktok_draft(content)
+    return False
+
+
+def _save_tiktok_draft(content: str):
+    """Saves TikTok content to drafts folder for manual review."""
+    import json
+    from datetime import datetime
+
+    os.makedirs("drafts", exist_ok=True)
+    filename = f"drafts/tiktok_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json"
+
+    with open(filename, "w", encoding="utf-8") as f:
+        json.dump({"platform": "tiktok", "content": content}, f, indent=2)
+
+    logger.info(f"TikTok draft saved to {filename} for manual posting.")
+
+
+# ─────────────────────────────────────────
+# PUBLISH ALL
+# ─────────────────────────────────────────
+
+def publish_all(posts: dict) -> dict:
+    """
+    Publishes approved posts to all platforms.
+    Returns a results dict showing success/failure per platform.
+    """
+    logger.step("Starting publishing to all platforms...")
+
+    results = {
+        "linkedin_personal": False,
+        "linkedin_company":  False,
+        "threads":           False,
+        "tiktok":            False,
+    }
+
+    # LinkedIn Personal
+    results["linkedin_personal"] = post_linkedin_personal(
+        posts.get("linkedin_personal", ""),
+        posts.get("hashtags_linkedin", "")
+    )
+
+    # LinkedIn Company
+    results["linkedin_company"] = post_linkedin_company(
+        posts.get("linkedin_company", ""),
+        posts.get("hashtags_linkedin", "")
+    )
+
+    # Threads
+    threads_content = (
+        posts.get("threads_post", "") + "\n\n" +
+        posts.get("hashtags_tiktok", "")
+    ).strip()
+    results["threads"] = post_threads(threads_content)
+
+    # TikTok (manual for now — Phase 2 will automate with Remotion)
+    results["tiktok"] = post_tiktok_text(posts.get("tiktok_caption", ""))
+
+    # Summary
+    succeeded = [k for k, v in results.items() if v]
+    failed    = [k for k, v in results.items() if not v]
+
+    logger.success(f"Published to: {', '.join(succeeded) if succeeded else 'none'}")
+    if failed:
+        logger.warning(f"Failed or skipped: {', '.join(failed)}")
+
+    return results

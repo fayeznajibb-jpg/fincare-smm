@@ -1,0 +1,38 @@
+# Environment variables — NEVER commit these
+.env
+*.env
+.env.*
+
+# Logs
+logs/
+*.log
+
+# Drafts (contain post content before approval)
+drafts/*.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+*.swp
