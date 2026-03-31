@@ -133,6 +133,107 @@ Remember:
     return posts
 
 
+def rewrite_posts(topic: dict, posts: dict, feedback: str) -> dict:
+    """
+    Rewrites existing posts based on user feedback.
+    Called when user taps ✏️ Edit and sends feedback text.
+    """
+    logger.step(f"Rewriting posts based on feedback: {feedback[:80]}")
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
+
+    voice_path = os.path.join(os.path.dirname(__file__), '..', 'prompts', 'brand_voice.txt')
+    with open(voice_path, 'r', encoding='utf-8') as f:
+        brand_voice = f.read()
+
+    system_prompt = f"""You are the official social media copywriter for Fincare (aifincare.com).
+
+{brand_voice}
+
+Rewrite the posts below based on the user's feedback. Keep the same topic and structure but apply the requested changes.
+Return ONLY a raw JSON object in the exact same format as the original."""
+
+    user_message = f"""Original topic: {topic.get('topic', '')}
+Original posts (JSON):
+{json.dumps(posts, indent=2)}
+
+User feedback: {feedback}
+
+Apply the feedback and return updated posts in the same JSON format. Respect all character limits."""
+
+    client = anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=4000,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}]
+    )
+
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    updated_posts = json.loads(raw)
+    logger.success("Posts rewritten successfully.")
+    return updated_posts
+
+
+def write_posts_from_idea(idea_text: str) -> tuple[dict, dict]:
+    """
+    Builds a topic dict from the user's raw idea and writes posts.
+    Called when user taps 💡 My Idea and sends their topic.
+    Returns (topic, posts).
+    """
+    logger.step(f"Writing posts from user idea: {idea_text[:80]}")
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
+
+    voice_path = os.path.join(os.path.dirname(__file__), '..', 'prompts', 'brand_voice.txt')
+    with open(voice_path, 'r', encoding='utf-8') as f:
+        brand_voice = f.read()
+
+    # Step 1: Build a proper topic dict from the raw idea (small call)
+    topic_message = f"""The user wants to post about: "{idea_text}"
+
+Turn this into a structured topic for Fincare's social media. Return ONLY raw JSON:
+{{
+  "topic": "one clear sentence",
+  "angle": "Fincare's unique behavioral finance angle",
+  "hook": "scroll-stopping opening line under 15 words",
+  "key_stat": "one relevant data point or statistic",
+  "emotional_trigger": "fear/FOMO/overconfidence/shame/anxiety",
+  "why_today": "why this resonates right now (1-2 sentences)"
+}}"""
+
+    client = anthropic.Anthropic(api_key=api_key)
+    topic_resp = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=400,
+        messages=[{"role": "user", "content": topic_message}]
+    )
+
+    raw_topic = topic_resp.content[0].text.strip()
+    if raw_topic.startswith("```"):
+        raw_topic = raw_topic.split("```")[1]
+        if raw_topic.startswith("json"):
+            raw_topic = raw_topic[4:]
+        raw_topic = raw_topic.strip()
+
+    topic = json.loads(raw_topic)
+    logger.success(f"Topic built from idea: {topic.get('topic', '')[:60]}")
+
+    # Step 2: Write posts using the standard writer
+    posts = write_posts(topic)
+    return topic, posts
+
+
 def _trim_posts(posts: dict, errors: list) -> dict:
     """
     Trims posts that exceed character limits by cutting at the last complete sentence.

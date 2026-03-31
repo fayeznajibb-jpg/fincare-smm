@@ -18,7 +18,7 @@ load_dotenv()
 from utils.logger import SecureLogger
 from utils.validators import validate_env_vars
 from src.researcher import research_topic
-from src.writer import write_posts
+from src.writer import write_posts, rewrite_posts, write_posts_from_idea
 from src.telegram_bot import send_approval_request, wait_for_approval, send_notification
 from src.publisher import publish_all
 
@@ -91,30 +91,72 @@ def run():
     # Save draft as backup
     save_draft(topic, posts)
 
-    # ── Step 3: Send for approval ──────────────────────
-    logger.info("STEP 3: Sending for Telegram approval...")
-    try:
-        timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))
-        session_id = send_approval_request(topic, posts)
-    except Exception as e:
-        logger.error(f"Telegram send failed: {type(e).__name__}: {str(e)}")
-        sys.exit(1)
+    # ── Steps 3 & 4: Approval loop (supports Edit + My Idea rewrites) ──
+    timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))
+    MAX_REWRITES = 3
+    rewrites = 0
+    approved = False
 
-    # ── Step 4: Wait for approval ──────────────────────
-    logger.info("STEP 4: Waiting for approval...")
-    try:
-        approved, feedback = wait_for_approval(session_id, timeout_hours)
-    except Exception as e:
-        logger.error(f"Approval wait failed: {type(e).__name__}: {str(e)}")
-        sys.exit(1)
+    while rewrites <= MAX_REWRITES:
+        logger.info(f"STEP 3: Sending for Telegram approval (attempt {rewrites + 1})...")
+        try:
+            session_id = send_approval_request(topic, posts)
+        except Exception as e:
+            logger.error(f"Telegram send failed: {type(e).__name__}: {str(e)}")
+            sys.exit(1)
 
-    if not approved:
+        logger.info("STEP 4: Waiting for approval...")
+        try:
+            approved, feedback = wait_for_approval(session_id, timeout_hours)
+        except Exception as e:
+            logger.error(f"Approval wait failed: {type(e).__name__}: {str(e)}")
+            sys.exit(1)
+
+        # ── Approved ──────────────────────────────────
+        if approved:
+            break
+
+        # ── Edit: rewrite with feedback ───────────────
+        if feedback.startswith("EDIT:"):
+            user_feedback = feedback[5:].strip()
+            logger.info(f"Rewriting posts with feedback: {user_feedback[:80]}")
+            send_notification("✏️ <b>Rewriting posts...</b> Give me a moment.")
+            try:
+                posts = rewrite_posts(topic, posts, user_feedback)
+                save_draft(topic, posts)
+                rewrites += 1
+                continue
+            except Exception as e:
+                logger.error(f"Rewrite failed: {type(e).__name__}: {str(e)}")
+                send_notification("⚠️ <b>Rewrite failed.</b> Skipping today.")
+                sys.exit(1)
+
+        # ── My Idea: write fresh from user's topic ────
+        if feedback.startswith("IDEA:"):
+            user_idea = feedback[5:].strip()
+            logger.info(f"Writing fresh posts from user idea: {user_idea[:80]}")
+            send_notification("💡 <b>Writing posts from your idea...</b> Give me a moment.")
+            try:
+                topic, posts = write_posts_from_idea(user_idea)
+                save_draft(topic, posts)
+                rewrites += 1
+                continue
+            except Exception as e:
+                logger.error(f"Idea write failed: {type(e).__name__}: {str(e)}")
+                send_notification("⚠️ <b>Failed to write from your idea.</b> Skipping today.")
+                sys.exit(1)
+
+        # ── Rejected or timeout ───────────────────────
         logger.info(f"Posts not approved. Reason: {feedback or 'None given'}")
         send_notification(
             "📭 <b>Fincare SMM — Posts Skipped</b>\n\n"
             f"Today's posts were not approved.\n"
             f"Reason: {feedback or 'None given'}"
         )
+        sys.exit(0)
+
+    if not approved:
+        send_notification("📭 <b>Fincare SMM</b> — Max rewrites reached. Skipping today.")
         sys.exit(0)
 
     # ── Step 5: Publish ────────────────────────────────

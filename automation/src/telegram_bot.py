@@ -39,10 +39,16 @@ def send_approval_request(topic: dict, posts: dict) -> str:
     message = _build_preview_message(topic, posts)
 
     keyboard = {
-        "inline_keyboard": [[
-            {"text": "✅ APPROVE — Post All", "callback_data": f"approve_{session_id}"},
-            {"text": "❌ REJECT — Skip Today", "callback_data": f"reject_{session_id}"}
-        ]]
+        "inline_keyboard": [
+            [
+                {"text": "✅ Approve — Post All", "callback_data": f"approve_{session_id}"},
+                {"text": "❌ Reject — Skip Today", "callback_data": f"reject_{session_id}"}
+            ],
+            [
+                {"text": "✏️ Edit — Give Feedback", "callback_data": f"edit_{session_id}"},
+                {"text": "💡 My Idea — I'll Set the Topic", "callback_data": f"idea_{session_id}"}
+            ]
+        ]
     }
 
     payload = {
@@ -79,6 +85,7 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
     poll_interval = 30  # seconds between polls
     elapsed = 0
     last_update_id = 0
+    waiting_for_text = None  # "edit" or "idea" after user taps those buttons
 
     logger.step(f"Waiting for approval (timeout: {timeout_hours}h, session: {session_id})...")
 
@@ -124,7 +131,19 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
                     logger.info("Post REJECTED by user.")
                     return False, "Rejected by user"
 
-            # Handle text reply with feedback
+                elif data == f"edit_{session_id}":
+                    _answer_callback(token, callback["id"], "✏️ Got it! Send me your feedback.")
+                    send_notification("✏️ <b>What should I change?</b>\n\nJust type your feedback and I'll rewrite the posts.\n\n<i>Example: \"Make the tone more casual\" or \"Use a different hook about FOMO\"</i>")
+                    waiting_for_text = "edit"
+                    logger.info("User requested EDIT — waiting for feedback text...")
+
+                elif data == f"idea_{session_id}":
+                    _answer_callback(token, callback["id"], "💡 Love it! Tell me your idea.")
+                    send_notification("💡 <b>What's your idea or topic?</b>\n\nJust type it and I'll write fresh posts around it.\n\n<i>Example: \"Why young people are scared to start investing\" or \"The power of compound interest\"</i>")
+                    waiting_for_text = "idea"
+                    logger.info("User requested own IDEA — waiting for topic text...")
+
+            # Handle text reply
             if "message" in update:
                 msg = update["message"]
                 from_chat = str(msg.get("chat", {}).get("id", ""))
@@ -133,6 +152,16 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
                 if not validate_telegram_chat_id(from_chat, expected_chat_id):
                     continue
 
+                # If we're waiting for edit feedback or idea text
+                if waiting_for_text == "edit" and text:
+                    logger.info(f"Edit feedback received: {text[:80]}")
+                    return False, f"EDIT: {text}"
+
+                if waiting_for_text == "idea" and text:
+                    logger.info(f"User idea received: {text[:80]}")
+                    return False, f"IDEA: {text}"
+
+                # Legacy text commands still supported
                 if text.upper().startswith("APPROVE"):
                     logger.success("Post APPROVED via text reply.")
                     return True, ""
