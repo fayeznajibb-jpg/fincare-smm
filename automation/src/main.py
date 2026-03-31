@@ -26,6 +26,7 @@ from src.performance_tracker import record_post
 from src.image_brief import send_image_brief
 from src.tiktok_script import send_tiktok_script
 from src.weekly_calendar import mark_day_posted
+from src.campaign_manager import check_for_campaign_today, mark_campaign_posted
 
 logger = SecureLogger("main")
 
@@ -73,32 +74,46 @@ def run():
         )
         sys.exit(1)
 
-    # ── Step 1: Research trending topic ───────────────
-    logger.info("STEP 1: Researching topic...")
-    try:
-        topic = research_topic()
-    except Exception as e:
-        logger.error(f"Research failed: {type(e).__name__}: {str(e)}")
-        send_notification(
-            "⚠️ <b>Fincare SMM — Research Failed</b>\n\n"
-            f"Error: {type(e).__name__}\nCheck logs for details."
-        )
-        sys.exit(1)
+    # ── Campaign override check ────────────────────────
+    campaign = check_for_campaign_today()
+    if campaign:
+        logger.success(f"Campaign mode: {campaign['name']} — skipping research & writing.")
+        topic = campaign["topic"]
+        posts = campaign["posts"]
+        save_draft(topic, posts)
+        # Jump straight to approval loop (Steps 3–4)
+        # by setting these so the normal Steps 1–2 are skipped
+        _campaign_date = campaign["date"]
+    else:
+        _campaign_date = None
 
-    # ── Step 2: Write posts ────────────────────────────
-    logger.info("STEP 2: Writing posts...")
-    try:
-        posts = write_posts(topic)
-    except Exception as e:
-        logger.error(f"Writing failed: {type(e).__name__}: {str(e)}")
-        send_notification(
-            "⚠️ <b>Fincare SMM — Writing Failed</b>\n\n"
-            f"Error: {type(e).__name__}\nCheck logs for details."
-        )
-        sys.exit(1)
+    if not campaign:
+        # ── Step 1: Research trending topic ───────────────
+        logger.info("STEP 1: Researching topic...")
+        try:
+            topic = research_topic()
+        except Exception as e:
+            logger.error(f"Research failed: {type(e).__name__}: {str(e)}")
+            send_notification(
+                "⚠️ <b>Fincare SMM — Research Failed</b>\n\n"
+                f"Error: {type(e).__name__}\nCheck logs for details."
+            )
+            sys.exit(1)
 
-    # Save draft as backup
-    save_draft(topic, posts)
+        # ── Step 2: Write posts ────────────────────────────
+        logger.info("STEP 2: Writing posts...")
+        try:
+            posts = write_posts(topic)
+        except Exception as e:
+            logger.error(f"Writing failed: {type(e).__name__}: {str(e)}")
+            send_notification(
+                "⚠️ <b>Fincare SMM — Writing Failed</b>\n\n"
+                f"Error: {type(e).__name__}\nCheck logs for details."
+            )
+            sys.exit(1)
+
+        # Save draft as backup
+        save_draft(topic, posts)
 
     # ── Steps 3 & 4: Approval loop (supports Edit, My Idea, Image) ──
     timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))
@@ -125,6 +140,15 @@ def run():
         # ── Approved ──────────────────────────────────
         if approved:
             break
+
+        # ── Campaign creation requested mid-approval ──────
+        if feedback.startswith("CAMPAIGN_CREATE:"):
+            parts = feedback.split(":", 2)
+            if len(parts) == 3:
+                camp_date, camp_name = parts[1], parts[2]
+                from src.campaign_manager import create_campaign
+                create_campaign(camp_date, camp_name)
+            continue  # Return to approval after campaign is handled
 
         # ── Image attached: re-show preview with image ─
         if feedback.startswith("IMAGE:"):
@@ -199,6 +223,13 @@ def run():
         mark_day_posted(datetime.now().strftime("%A"))
     except Exception:
         pass
+
+    # ── Mark campaign as posted if applicable ─────────
+    if _campaign_date:
+        try:
+            mark_campaign_posted(_campaign_date)
+        except Exception:
+            pass
 
     # ── Skill 9: Image Brief ───────────────────────────
     try:

@@ -174,6 +174,20 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
                         send_notification("⚠️ Couldn't download image. Please try again or skip.")
                     continue
 
+                # Campaign creation — detected anytime, not just when waiting
+                if text.upper().startswith("CAMPAIGN "):
+                    from src.campaign_manager import parse_campaign_command, create_campaign
+                    parsed = parse_campaign_command(text)
+                    if parsed:
+                        logger.info(f"Campaign command received: {parsed['name']} on {parsed['date']}")
+                        return False, f"CAMPAIGN_CREATE:{parsed['date']}:{parsed['name']}"
+                    else:
+                        send_notification(
+                            "⚠️ Invalid campaign format.\n\n"
+                            "Use: <code>CAMPAIGN YYYY-MM-DD Campaign name</code>\n"
+                            "Example: <code>CAMPAIGN 2026-05-01 Fincare hits 1000 users</code>"
+                        )
+
                 # If we're waiting for edit feedback or idea text
                 if waiting_for_text == "edit" and text:
                     logger.info(f"Edit feedback received: {text[:80]}")

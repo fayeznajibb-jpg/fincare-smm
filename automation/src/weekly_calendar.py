@@ -148,9 +148,19 @@ def build_telegram_calendar_message(plan: list) -> str:
             f"   {status}{override}\n"
         )
 
+    # Show upcoming campaigns
+    try:
+        from src.campaign_manager import get_campaign_summary_text
+        campaign_text = get_campaign_summary_text()
+        if campaign_text:
+            lines.append(campaign_text)
+    except Exception:
+        pass
+
     lines += [
-        f"{'─'*35}",
-        "<i>Reply: \"Wednesday: your topic idea here\" to override any day.</i>",
+        f"\n{'─'*35}",
+        "<i>Override a day: reply \"Wednesday: your topic idea\"</i>",
+        "<i>Schedule a campaign: reply \"CAMPAIGN 2026-05-01 Campaign name\"</i>",
     ]
     return "\n".join(lines)
 
