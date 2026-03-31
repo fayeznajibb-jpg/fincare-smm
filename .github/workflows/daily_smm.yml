@@ -1,0 +1,59 @@
+name: Fincare Daily SMM Automation
+
+on:
+  # Runs every day at 8:00 AM UTC (adjust to your timezone)
+  schedule:
+    - cron: '0 8 * * 1-5'   # Monday to Friday, 8am UTC
+
+  # Also allows manual trigger from GitHub Actions tab
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (research + write only, no posting)'
+        required: false
+        default: 'false'
+
+jobs:
+  run-smm-pipeline:
+    name: Research → Write → Approve → Post
+    runs-on: ubuntu-latest
+    timeout-minutes: 300  # 5 hours max (covers 4h approval wait)
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: automation
+        run: pip install -r requirements.txt
+
+      - name: Run SMM pipeline
+        working-directory: automation
+        env:
+          # All secrets stored in GitHub Secrets — never in code
+          ANTHROPIC_API_KEY:          ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN:         ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:           ${{ secrets.TELEGRAM_CHAT_ID }}
+          LINKEDIN_ACCESS_TOKEN:      ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_PERSON_ID:         ${{ secrets.LINKEDIN_PERSON_ID }}
+          LINKEDIN_ORGANIZATION_ID:   ${{ secrets.LINKEDIN_ORGANIZATION_ID }}
+          TIKTOK_ACCESS_TOKEN:        ${{ secrets.TIKTOK_ACCESS_TOKEN }}
+          THREADS_ACCESS_TOKEN:       ${{ secrets.THREADS_ACCESS_TOKEN }}
+          THREADS_USER_ID:            ${{ secrets.THREADS_USER_ID }}
+          APPROVAL_TIMEOUT_HOURS:     "4"
+          TIMEZONE:                   "UTC"
+        run: python src/main.py
+
+      - name: Upload logs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: smm-logs
+          path: automation/logs/
+          retention-days: 7
