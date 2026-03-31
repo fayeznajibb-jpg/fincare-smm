@@ -275,11 +275,11 @@ def _answer_callback(token: str, callback_id: str, text: str):
 def _build_preview_message(topic: dict, posts: dict, image_path: str = None) -> str:
     """Builds a formatted Telegram preview of all posts for approval."""
 
-    linkedin_p = posts.get("linkedin_personal", "")
-    linkedin_c = posts.get("linkedin_company", "")
-    instagram  = posts.get("instagram_caption", "")
-    tiktok     = posts.get("tiktok_caption", "")
-    threads    = posts.get("threads_post", "")
+    linkedin_p = posts.get("linkedin_personal") or ""
+    linkedin_c = posts.get("linkedin_company") or ""
+    instagram  = posts.get("instagram_caption") or ""
+    tiktok     = posts.get("tiktok_caption") or ""
+    threads    = posts.get("threads_post") or ""
 
     def preview(text: str, limit: int = 300) -> str:
         return text[:limit] + "..." if len(text) > limit else text
