@@ -24,7 +24,11 @@ def _api(token: str, method: str, payload: dict = None) -> dict:
 
 def send_approval_request(topic: dict, posts: dict, image_path: str = None) -> str:
     """
-    Sends a formatted post preview to Telegram with action buttons.
+    Sends a multi-message approval flow to Telegram:
+      1. Header card (topic info)
+      2. One message per platform with FULL post text
+      3. Final message with action buttons only
+
     Returns a unique session_id used to match the callback response.
     Security: each session has a unique ID to prevent replay attacks.
     """
@@ -34,40 +38,102 @@ def send_approval_request(topic: dict, posts: dict, image_path: str = None) -> s
     if not token or not chat_id:
         raise EnvironmentError("TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set.")
 
-    session_id = str(uuid.uuid4())[:8]  # Short unique ID for this run
+    session_id = str(uuid.uuid4())[:8]
 
-    message = _build_preview_message(topic, posts, image_path)
+    linkedin_c = posts.get("linkedin_company") or ""
+    instagram  = posts.get("instagram_caption") or ""
+    tiktok     = posts.get("tiktok_caption") or ""
+    threads    = posts.get("threads_post") or ""
 
+    image_line = f"\n<b>🖼️ IMAGE:</b> ✅ Attached — <i>{os.path.basename(image_path)}</i>" if image_path else ""
+
+    # ── Message 1: Topic header ─────────────────────────────────
+    header = (
+        f"<b>🤖 FINCARE — DAILY POST REVIEW</b>\n"
+        f"{'─' * 35}\n"
+        f"<b>📌 TOPIC:</b> {topic.get('topic', '')}\n"
+        f"<b>🎯 ANGLE:</b> {topic.get('angle', '')}\n"
+        f"<b>📊 KEY STAT:</b> {topic.get('key_stat', '')}\n"
+        f"<b>🏛️ PILLAR:</b> {topic.get('content_pillar', '—')}  "
+        f"<b>⚡ TRIGGER:</b> {topic.get('emotional_trigger', '—')}"
+        f"{image_line}\n"
+        f"{'─' * 35}\n"
+        f"<i>Full posts below. Tap a button at the end to act.</i>"
+    )
+    _send_message(token, chat_id, header)
+
+    # ── Message 2: LinkedIn Company (full) ──────────────────────
+    if linkedin_c:
+        _send_message(token, chat_id,
+            f"<b>🏢 LINKEDIN COMPANY</b>  ({len(linkedin_c)} chars)\n"
+            f"{'─' * 35}\n"
+            f"{linkedin_c}"
+        )
+
+    # ── Message 3: Instagram (full) ─────────────────────────────
+    if instagram:
+        _send_message(token, chat_id,
+            f"<b>📸 INSTAGRAM</b>  ({len(instagram)} chars)\n"
+            f"{'─' * 35}\n"
+            f"{instagram}"
+        )
+
+    # ── Message 4: TikTok + Threads ─────────────────────────────
+    tiktok_threads = ""
+    if tiktok:
+        tiktok_threads += f"<b>🎵 TIKTOK</b>  ({len(tiktok)} chars)\n{'─' * 35}\n{tiktok}\n\n"
+    if threads:
+        tiktok_threads += f"<b>🧵 THREADS</b>  ({len(threads)} chars)\n{'─' * 35}\n{threads}"
+    if tiktok_threads.strip():
+        _send_message(token, chat_id, tiktok_threads.strip())
+
+    # ── Message 5: Action buttons only ──────────────────────────
     keyboard = {
         "inline_keyboard": [
             [
-                {"text": "✅ Approve — Post All", "callback_data": f"approve_{session_id}"},
-                {"text": "❌ Reject — Skip Today", "callback_data": f"reject_{session_id}"}
+                {"text": "✅ Approve — Post Now",     "callback_data": f"approve_{session_id}"},
+                {"text": "❌ Reject — Skip Today",    "callback_data": f"reject_{session_id}"}
             ],
             [
-                {"text": "✏️ Edit — Give Feedback", "callback_data": f"edit_{session_id}"},
-                {"text": "💡 My Idea — I'll Set the Topic", "callback_data": f"idea_{session_id}"}
+                {"text": "✏️ Edit — Give Feedback",   "callback_data": f"edit_{session_id}"},
+                {"text": "💡 My Idea — I'll Set Topic", "callback_data": f"idea_{session_id}"}
             ],
             [
-                {"text": "🖼️ Add Image", "callback_data": f"image_{session_id}"}
+                {"text": "🖼️ Add / Change Image",     "callback_data": f"image_{session_id}"}
             ]
         ]
     }
 
-    payload = {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "HTML",
-        "reply_markup": keyboard
-    }
-
-    result = _api(token, "sendMessage", payload)
+    result = _api(token, "sendMessage", {
+        "chat_id":      chat_id,
+        "text":         "👆 <b>Review the posts above, then tap an action:</b>",
+        "parse_mode":   "HTML",
+        "reply_markup": keyboard,
+    })
 
     if not result.get("ok"):
-        raise RuntimeError(f"Failed to send Telegram message: {result}")
+        raise RuntimeError(f"Failed to send Telegram approval buttons: {result}")
 
     logger.success(f"Approval request sent to Telegram (session: {session_id})")
     return session_id
+
+
+def _send_message(token: str, chat_id: str, text: str):
+    """Sends a plain HTML message, splitting if over Telegram's 4096-char limit."""
+    MAX = 4096
+    while text:
+        chunk, text = text[:MAX], text[MAX:]
+        try:
+            _api(token, "sendMessage", {
+                "chat_id":    chat_id,
+                "text":       chunk,
+                "parse_mode": "HTML",
+            })
+        except Exception:
+            # Fallback: strip HTML tags and retry
+            import re
+            plain = re.sub(r"<[^>]+>", "", chunk)
+            _api(token, "sendMessage", {"chat_id": chat_id, "text": plain})
 
 
 def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool, str]:
@@ -224,20 +290,9 @@ def send_notification(message: str):
         return
 
     try:
-        _api(token, "sendMessage", {
-            "chat_id": chat_id,
-            "text": message,
-            "parse_mode": "HTML"
-        })
+        _send_message(token, chat_id, message)
     except Exception:
-        # Retry without HTML parse mode in case of formatting error
-        try:
-            _api(token, "sendMessage", {
-                "chat_id": chat_id,
-                "text": message.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
-            })
-        except Exception:
-            logger.warning("Telegram notification failed silently — continuing.")
+        logger.warning("Telegram notification failed silently — continuing.")
 
 
 def _download_telegram_photo(token: str, file_id: str) -> str:
@@ -272,47 +327,3 @@ def _answer_callback(token: str, callback_id: str, text: str):
         pass  # Non-critical
 
 
-def _build_preview_message(topic: dict, posts: dict, image_path: str = None) -> str:
-    """Builds a formatted Telegram preview of all posts for approval."""
-
-    linkedin_p = posts.get("linkedin_personal") or ""
-    linkedin_c = posts.get("linkedin_company") or ""
-    instagram  = posts.get("instagram_caption") or ""
-    tiktok     = posts.get("tiktok_caption") or ""
-    threads    = posts.get("threads_post") or ""
-
-    def preview(text: str, limit: int = 300) -> str:
-        return text[:limit] + "..." if len(text) > limit else text
-
-    image_line = f"\n<b>🖼️ IMAGE:</b> ✅ Attached ({os.path.basename(image_path)})\n" if image_path else ""
-
-    msg = (
-        f"<b>🤖 FINCARE — DAILY POST APPROVAL</b>\n"
-        f"{'─' * 35}\n\n"
-        f"<b>📌 TOPIC:</b> {topic.get('topic', '')}\n"
-        f"<b>🎯 ANGLE:</b> {topic.get('angle', '')}\n"
-        f"<b>📊 KEY STAT:</b> {topic.get('key_stat', '')}\n"
-        f"<b>🏛️ PILLAR:</b> {topic.get('content_pillar', '—')} | <b>⚡ TRIGGER:</b> {topic.get('emotional_trigger', '—')}\n"
-        f"{image_line}\n"
-        f"{'─' * 35}\n\n"
-
-        f"<b>💼 LINKEDIN (Personal — {len(linkedin_p)} chars):</b>\n"
-        f"{preview(linkedin_p)}\n\n"
-
-        f"<b>🏢 LINKEDIN (Company — {len(linkedin_c)} chars):</b>\n"
-        f"{preview(linkedin_c, 200)}\n\n"
-
-        f"<b>📸 INSTAGRAM ({len(instagram)} chars):</b>\n"
-        f"{preview(instagram, 200)}\n\n"
-
-        f"<b>🎵 TIKTOK ({len(tiktok)} chars):</b>\n"
-        f"{preview(tiktok, 150)}\n\n"
-
-        f"<b>🧵 THREADS ({len(threads)} chars):</b>\n"
-        f"{preview(threads, 200)}\n\n"
-
-        f"{'─' * 35}\n"
-        f"<i>Tap a button below.</i>"
-    )
-
-    return msg
