@@ -158,11 +158,21 @@ def send_notification(message: str):
     if not token or not chat_id:
         return
 
-    _api(token, "sendMessage", {
-        "chat_id": chat_id,
-        "text": message,
-        "parse_mode": "HTML"
-    })
+    try:
+        _api(token, "sendMessage", {
+            "chat_id": chat_id,
+            "text": message,
+            "parse_mode": "HTML"
+        })
+    except Exception:
+        # Retry without HTML parse mode in case of formatting error
+        try:
+            _api(token, "sendMessage", {
+                "chat_id": chat_id,
+                "text": message.replace("<b>", "").replace("</b>", "").replace("<i>", "").replace("</i>", "")
+            })
+        except Exception:
+            logger.warning("Telegram notification failed silently — continuing.")
 
 
 def _answer_callback(token: str, callback_id: str, text: str):
