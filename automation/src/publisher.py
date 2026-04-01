@@ -192,7 +192,7 @@ def _linkedin_post(token: str, payload: dict, label: str) -> str | None:
             logger.success(f"LinkedIn {label} posted successfully. URN: {post_urn[:40]}")
             return post_urn or "posted"
         else:
-            logger.error(f"LinkedIn {label} failed. Status: {resp.status_code}")
+            logger.error(f"LinkedIn {label} failed. Status: {resp.status_code} — {resp.text[:300]}")
             return None
 
     except requests.RequestException as e:
