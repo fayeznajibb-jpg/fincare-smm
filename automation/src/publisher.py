@@ -304,48 +304,55 @@ def _save_tiktok_draft(content: str):
 # PUBLISH ALL
 # ─────────────────────────────────────────
 
-def publish_all(posts: dict, image_path: str = None) -> dict:
+def publish_all(posts: dict, image_path: str = None, platforms: list = None) -> dict:
     """
-    Publishes approved posts to all platforms.
-    Optionally attaches an image to LinkedIn posts.
+    Publishes approved posts to all platforms, or only to the specified ones.
+    platforms: list of platform keys to publish (e.g. ["linkedin_company"]).
+               Pass None to publish to all.
     Returns a results dict showing success/failure per platform.
     """
-    logger.step("Starting publishing to all platforms...")
+    all_platforms = platforms is None
+    def should_post(key: str) -> bool:
+        return all_platforms or key in (platforms or [])
+
+    logger.step(f"Publishing to: {', '.join(platforms) if platforms else 'all platforms'}...")
     if image_path:
         logger.info(f"Image attached: {image_path}")
 
     results = {
-        "linkedin_company":     None,   # URN string on success, None on failure
-        "linkedin_company_urn": None,   # captured separately for performance tracking
+        "linkedin_company":     None,
+        "linkedin_company_urn": None,
         "threads":              False,
         "tiktok":               False,
     }
 
-    # LinkedIn Company page only — no personal profile posting
-    urn = post_linkedin_company(
-        posts.get("linkedin_company", ""),
-        posts.get("hashtags_linkedin", ""),
-        image_path
-    )
-    results["linkedin_company"]     = bool(urn)
-    results["linkedin_company_urn"] = urn
+    # LinkedIn Company
+    if should_post("linkedin_company"):
+        urn = post_linkedin_company(
+            posts.get("linkedin_company", ""),
+            posts.get("hashtags_linkedin", ""),
+            image_path
+        )
+        results["linkedin_company"]     = bool(urn)
+        results["linkedin_company_urn"] = urn
 
     # Threads
-    threads_content = (
-        posts.get("threads_post", "") + "\n\n" +
-        posts.get("hashtags_tiktok", "")
-    ).strip()
-    results["threads"] = post_threads(threads_content)
+    if should_post("threads"):
+        threads_content = (
+            posts.get("threads_post", "") + "\n\n" +
+            posts.get("hashtags_tiktok", "")
+        ).strip()
+        results["threads"] = post_threads(threads_content)
 
-    # TikTok (manual for now — Phase 2 will automate with Remotion)
-    results["tiktok"] = post_tiktok_text(posts.get("tiktok_caption", ""))
+    # TikTok (draft only — Phase 2 will automate with Remotion)
+    if should_post("tiktok"):
+        results["tiktok"] = post_tiktok_text(posts.get("tiktok_caption", ""))
 
-    # Summary
-    succeeded = [k for k, v in results.items() if v]
-    failed    = [k for k, v in results.items() if not v]
+    succeeded = [k for k, v in results.items() if v and k != "linkedin_company_urn"]
+    failed    = [k for k, v in results.items() if not v and k != "linkedin_company_urn"]
 
     logger.success(f"Published to: {', '.join(succeeded) if succeeded else 'none'}")
     if failed:
-        logger.warning(f"Failed or skipped: {', '.join(failed)}")
+        logger.warning(f"Skipped: {', '.join(failed)}")
 
     return results

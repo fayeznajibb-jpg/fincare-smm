@@ -120,7 +120,8 @@ def run():
     MAX_REWRITES = 3
     rewrites = 0
     approved = False
-    image_path = None  # Set when user attaches an image
+    image_path = None        # Set when user attaches an image
+    selected_platforms = None  # None = all platforms
 
     while rewrites <= MAX_REWRITES:
         logger.info(f"STEP 3: Sending for Telegram approval (attempt {rewrites + 1})...")
@@ -137,8 +138,12 @@ def run():
             logger.error(f"Approval wait failed: {type(e).__name__}: {str(e)}")
             sys.exit(1)
 
-        # ── Approved ──────────────────────────────────
+        # ── Approved (all or specific platforms) ──────
         if approved:
+            # feedback may carry "PLATFORMS:linkedin_company" etc.
+            selected_platforms = None
+            if feedback.startswith("PLATFORMS:"):
+                selected_platforms = [p.strip() for p in feedback[10:].split(",")]
             break
 
         # ── Campaign creation requested mid-approval ──────
@@ -201,9 +206,10 @@ def run():
         sys.exit(0)
 
     # ── Step 5: Publish ────────────────────────────────
-    logger.info("STEP 5: Publishing to all platforms...")
+    label = f"platforms: {', '.join(selected_platforms)}" if selected_platforms else "all platforms"
+    logger.info(f"STEP 5: Publishing to {label}...")
     try:
-        results = publish_all(posts, image_path)
+        results = publish_all(posts, image_path, platforms=selected_platforms)
     except Exception as e:
         logger.error(f"Publishing failed: {type(e).__name__}: {str(e)}")
         send_notification(

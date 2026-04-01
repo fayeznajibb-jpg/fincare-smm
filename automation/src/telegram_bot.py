@@ -88,27 +88,44 @@ def send_approval_request(topic: dict, posts: dict, image_path: str = None) -> s
         _send_message(token, chat_id, tiktok_threads.strip())
 
     # ── Message 5: Action buttons only ──────────────────────────
-    keyboard = {
-        "inline_keyboard": [
-            [
-                {"text": "✅ Approve — Post Now",     "callback_data": f"approve_{session_id}"},
-                {"text": "❌ Reject — Skip Today",    "callback_data": f"reject_{session_id}"}
-            ],
-            [
-                {"text": "✏️ Edit — Give Feedback",   "callback_data": f"edit_{session_id}"},
-                {"text": "💡 My Idea — I'll Set Topic", "callback_data": f"idea_{session_id}"}
-            ],
-            [
-                {"text": "🖼️ Add / Change Image",     "callback_data": f"image_{session_id}"}
-            ]
+    # Build per-platform rows only for platforms that have content
+    platform_row = []
+    if linkedin_c:
+        platform_row.append({"text": "🏢 LinkedIn Only", "callback_data": f"post_linkedin_{session_id}"})
+    if instagram:
+        platform_row.append({"text": "📸 Instagram Only", "callback_data": f"post_instagram_{session_id}"})
+
+    tiktok_threads_row = []
+    if tiktok:
+        tiktok_threads_row.append({"text": "🎵 TikTok Only", "callback_data": f"post_tiktok_{session_id}"})
+    if threads:
+        tiktok_threads_row.append({"text": "🧵 Threads Only", "callback_data": f"post_threads_{session_id}"})
+
+    keyboard_rows = [
+        [
+            {"text": "✅ Post ALL",          "callback_data": f"approve_{session_id}"},
+            {"text": "❌ Skip Today",        "callback_data": f"reject_{session_id}"}
+        ],
+    ]
+    if platform_row:
+        keyboard_rows.append(platform_row)
+    if tiktok_threads_row:
+        keyboard_rows.append(tiktok_threads_row)
+    keyboard_rows += [
+        [
+            {"text": "✏️ Edit — Give Feedback",     "callback_data": f"edit_{session_id}"},
+            {"text": "💡 My Idea — I'll Set Topic", "callback_data": f"idea_{session_id}"}
+        ],
+        [
+            {"text": "🖼️ Add / Change Image", "callback_data": f"image_{session_id}"}
         ]
-    }
+    ]
 
     result = _api(token, "sendMessage", {
         "chat_id":      chat_id,
-        "text":         "👆 <b>Review the posts above, then tap an action:</b>",
+        "text":         "👆 <b>Review the posts above, then choose what to post:</b>",
         "parse_mode":   "HTML",
-        "reply_markup": keyboard,
+        "reply_markup": {"inline_keyboard": keyboard_rows},
     })
 
     if not result.get("ok"):
@@ -191,9 +208,29 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
 
                 # Security check — only accept callbacks matching this session
                 if data == f"approve_{session_id}":
-                    _answer_callback(token, callback["id"], "✅ Approved! Posting now...")
-                    logger.success("Post APPROVED by user.")
+                    _answer_callback(token, callback["id"], "✅ Approved! Posting to all platforms...")
+                    logger.success("Post APPROVED (all platforms).")
                     return True, ""
+
+                elif data == f"post_linkedin_{session_id}":
+                    _answer_callback(token, callback["id"], "🏢 Posting to LinkedIn only...")
+                    logger.success("Post APPROVED for LinkedIn only.")
+                    return True, "PLATFORMS:linkedin_company"
+
+                elif data == f"post_instagram_{session_id}":
+                    _answer_callback(token, callback["id"], "📸 Posting to Instagram only...")
+                    logger.success("Post APPROVED for Instagram only.")
+                    return True, "PLATFORMS:instagram"
+
+                elif data == f"post_tiktok_{session_id}":
+                    _answer_callback(token, callback["id"], "🎵 Saving TikTok draft only...")
+                    logger.success("Post APPROVED for TikTok only.")
+                    return True, "PLATFORMS:tiktok"
+
+                elif data == f"post_threads_{session_id}":
+                    _answer_callback(token, callback["id"], "🧵 Posting to Threads only...")
+                    logger.success("Post APPROVED for Threads only.")
+                    return True, "PLATFORMS:threads"
 
                 elif data == f"reject_{session_id}":
                     _answer_callback(token, callback["id"], "❌ Rejected. Skipping today.")
