@@ -1,0 +1,42 @@
+name: LinkedIn Debug
+
+on:
+  workflow_dispatch:
+
+jobs:
+  debug-linkedin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Test LinkedIn token + org access
+        env:
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_ORGANIZATION_ID: ${{ secrets.LINKEDIN_ORGANIZATION_ID }}
+        run: |
+          echo "=== Testing token validity ==="
+          curl -s -o /tmp/userinfo.json -w "HTTP %{http_code}" \
+            -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN" \
+            "https://api.linkedin.com/v2/userinfo"
+          echo ""
+          cat /tmp/userinfo.json
+
+          echo ""
+          echo "=== Testing org access ==="
+          curl -s -o /tmp/org.json -w "HTTP %{http_code}" \
+            -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN" \
+            -H "X-Restli-Protocol-Version: 2.0.0" \
+            "https://api.linkedin.com/v2/organizations/$LINKEDIN_ORGANIZATION_ID"
+          echo ""
+          cat /tmp/org.json
+
+          echo ""
+          echo "=== Testing ugcPosts scope (dry-run with invalid payload to see error) ==="
+          curl -s -o /tmp/post.json -w "HTTP %{http_code}" \
+            -X POST \
+            -H "Authorization: Bearer $LINKEDIN_ACCESS_TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "X-Restli-Protocol-Version: 2.0.0" \
+            -d '{"test": true}' \
+            "https://api.linkedin.com/v2/ugcPosts"
+          echo ""
+          cat /tmp/post.json
