@@ -19,7 +19,7 @@ from utils.logger import SecureLogger
 from utils.validators import validate_env_vars
 from src.researcher import research_topic
 from src.writer import write_posts, rewrite_posts, write_posts_from_idea, rewrite_single_platform
-from src.telegram_bot import send_approval_request, wait_for_approval, send_notification
+from src.telegram_bot import send_approval_request, wait_for_approval, send_notification, _get_streak, _streak_message
 from src.publisher import publish_all
 from src.post_scheduler import init_schedule_if_missing, get_optimal_schedule
 from src.performance_tracker import record_post
@@ -257,29 +257,47 @@ def run():
         except Exception:
             pass
 
-    # ── Skill 9: Image Brief ───────────────────────────
-    try:
-        send_image_brief(topic, posts)
-    except Exception as e:
-        logger.warning(f"Image brief failed (non-critical): {type(e).__name__}")
+    # ── Skill 9: Image Brief (only when instagram was posted) ─────────
+    posting_instagram = selected_platforms is None or "instagram" in (selected_platforms or [])
+    if posting_instagram:
+        try:
+            send_image_brief(topic, posts)
+        except Exception as e:
+            logger.warning(f"Image brief failed (non-critical): {type(e).__name__}")
 
-    # ── Skill 11: TikTok Script ────────────────────────
-    try:
-        send_tiktok_script(topic, posts)
-    except Exception as e:
-        logger.warning(f"TikTok script failed (non-critical): {type(e).__name__}")
+    # ── Skill 11: TikTok Script (only when tiktok was posted) ─────────
+    posting_tiktok = selected_platforms is None or "tiktok" in (selected_platforms or [])
+    if posting_tiktok:
+        try:
+            send_tiktok_script(topic, posts)
+        except Exception as e:
+            logger.warning(f"TikTok script failed (non-critical): {type(e).__name__}")
 
     # ── Step 6: Final report ───────────────────────────
-    succeeded = [k for k, v in results.items() if v and k != "linkedin_company_urn"]
-    failed    = [k for k, v in results.items() if not v and k != "linkedin_company_urn"]
+    succeeded = [k for k, v in results.items() if (v is True or v == "manual") and k != "linkedin_company_urn"]
+    failed    = [k for k, v in results.items() if v is False and k != "linkedin_company_urn"]
+    manual    = [k for k, v in results.items() if v == "manual" and k != "linkedin_company_urn"]
+
+    streak     = _get_streak() if succeeded else 0
+    streak_msg = _streak_message(streak)
+
+    succeeded_labels = []
+    for k in succeeded:
+        label = k.replace("_", " ").title()
+        if k in manual:
+            label += " (manual)"
+        succeeded_labels.append(label)
 
     report = (
-        "📊 <b>Fincare SMM — Daily Report</b>\n\n"
-        f"📌 Topic: {topic['topic'][:80]}\n\n"
-        f"✅ Posted to: {', '.join(succeeded) if succeeded else 'none'}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "📊 <b>Fincare SMM — Daily Report</b>\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"📌 {topic['topic'][:80]}\n\n"
+        f"✅ Posted to: {', '.join(succeeded_labels) if succeeded_labels else 'none'}\n"
     )
     if failed:
-        report += f"⚠️ Skipped: {', '.join(failed)}\n"
+        report += f"⚠️ Failed: {', '.join(failed)}\n"
+    report += streak_msg
 
     send_notification(report)
     logger.success("Run complete.")

@@ -303,6 +303,62 @@ def _save_tiktok_draft(content: str):
 
 
 # ─────────────────────────────────────────
+# MANUAL LINKEDIN HELPER
+# ─────────────────────────────────────────
+
+def _send_linkedin_manual_helper(posts: dict, image_path: str = None):
+    """
+    Sends a formatted copy-paste message to Telegram for manual LinkedIn posting.
+    Used when LINKEDIN_MANUAL=true env var is set (while API approval is pending).
+    """
+    token   = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+    if not token or not chat_id:
+        logger.warning("Telegram credentials missing — cannot send manual LinkedIn helper.")
+        return
+
+    post_text = posts.get("linkedin_company", "")
+    hashtags  = posts.get("hashtags_linkedin", "")
+
+    message = (
+        "📋 <b>READY TO POST ON LINKEDIN</b>\n\n"
+        "Go to <b>linkedin.com/company/fincare</b> → Start a post\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n\n"
+        f"{post_text}\n\n"
+        f"─── Hashtags ───\n{hashtags}\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "<i>Post this manually. The image is attached below.</i>"
+    )
+
+    api_base = f"https://api.telegram.org/bot{token}"
+
+    # Send text first (full message, always readable)
+    try:
+        requests.post(
+            f"{api_base}/sendMessage",
+            json={"chat_id": chat_id, "text": message, "parse_mode": "HTML"},
+            timeout=10
+        )
+    except Exception as e:
+        logger.warning(f"Manual LinkedIn message send failed: {type(e).__name__}")
+
+    # Send image separately so it's easy to save/download
+    if image_path and os.path.exists(image_path):
+        try:
+            with open(image_path, "rb") as img:
+                requests.post(
+                    f"{api_base}/sendPhoto",
+                    data={"chat_id": chat_id, "caption": "🖼️ LinkedIn image — save and attach when posting"},
+                    files={"photo": img},
+                    timeout=30
+                )
+        except Exception as e:
+            logger.warning(f"Manual LinkedIn image send failed: {type(e).__name__}")
+
+    logger.success("Manual LinkedIn helper sent to Telegram.")
+
+
+# ─────────────────────────────────────────
 # PUBLISH ALL
 # ─────────────────────────────────────────
 
@@ -324,19 +380,24 @@ def publish_all(posts: dict, image_path: str = None, platforms: list = None) -> 
     results = {
         "linkedin_company":     None,
         "linkedin_company_urn": None,
-        "threads":              False,
-        "tiktok":               False,
+        "threads":              None,
+        "tiktok":               None,
     }
 
     # LinkedIn Company
     if should_post("linkedin_company"):
-        urn = post_linkedin_company(
-            posts.get("linkedin_company", ""),
-            posts.get("hashtags_linkedin", ""),
-            image_path
-        )
-        results["linkedin_company"]     = bool(urn)
-        results["linkedin_company_urn"] = urn
+        if os.getenv("LINKEDIN_MANUAL", "").lower() == "true":
+            _send_linkedin_manual_helper(posts, image_path)
+            results["linkedin_company"]     = "manual"
+            results["linkedin_company_urn"] = None
+        else:
+            urn = post_linkedin_company(
+                posts.get("linkedin_company", ""),
+                posts.get("hashtags_linkedin", ""),
+                image_path
+            )
+            results["linkedin_company"]     = bool(urn)
+            results["linkedin_company_urn"] = urn
 
     # Threads
     if should_post("threads"):
@@ -350,8 +411,8 @@ def publish_all(posts: dict, image_path: str = None, platforms: list = None) -> 
     if should_post("tiktok"):
         results["tiktok"] = post_tiktok_text(posts.get("tiktok_caption", ""))
 
-    succeeded = [k for k, v in results.items() if v and k != "linkedin_company_urn"]
-    failed    = [k for k, v in results.items() if not v and k != "linkedin_company_urn"]
+    succeeded = [k for k, v in results.items() if (v is True or v == "manual") and k != "linkedin_company_urn"]
+    failed    = [k for k, v in results.items() if v is False and k != "linkedin_company_urn"]
 
     logger.success(f"Published to: {', '.join(succeeded) if succeeded else 'none'}")
     if failed:

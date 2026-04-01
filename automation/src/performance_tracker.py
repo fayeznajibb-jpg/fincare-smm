@@ -141,47 +141,77 @@ def check_pending_stats() -> int:
 
 def build_weekly_report() -> str:
     """
-    Builds a weekly performance summary for posts from the last 7 days.
-    Highlights best performing post and overall trends.
+    Builds a daily post review with:
+    - Today's most recent post stats (if available)
+    - This week's rolling summary
+    Updated daily at 9am by the stats check job.
     """
-    log = load_performance_log()
-    cutoff = datetime.now() - timedelta(days=7)
+    log    = load_performance_log()
+    now    = datetime.now()
+    cutoff = now - timedelta(days=7)
+    today  = now.strftime("%Y-%m-%d")
 
     recent = [
         e for e in log
         if e.get("stats_fetched") and datetime.fromisoformat(e["posted_at"]) >= cutoff
     ]
 
+    # Sort recent by posted_at descending to find today's post
+    recent_sorted = sorted(recent, key=lambda e: e["posted_at"], reverse=True)
+    today_post    = next((e for e in recent_sorted if e["posted_at"][:10] == today), None)
+
+    # Find most recently fetched entry to show last-updated time
+    fetched_entries = [e for e in log if e.get("fetched_at")]
+    last_updated = (
+        max(fetched_entries, key=lambda e: e["fetched_at"])["fetched_at"][:16].replace("T", " ") + " UTC"
+        if fetched_entries else "not yet fetched"
+    )
+
     if not recent:
         return (
-            "📊 <b>Fincare SMM — Weekly Report</b>\n\n"
-            "<i>No performance data yet for this week.\n"
-            "Stats will appear here after the first approved posts go live.</i>"
+            "📊 <b>Fincare — Post Performance</b>\n"
+            f"<i>{now.strftime('%B %d, %Y')}</i>\n\n"
+            "<i>No performance data yet.\n"
+            "Stats appear here 24h after the first post goes live.</i>\n\n"
+            f"<i>🕐 Stats last updated: {last_updated}</i>"
         )
 
-    # Find best post
-    best = max(recent, key=lambda e: e["stats"].get("impressionCount", 0))
+    lines = [
+        "📊 <b>Fincare — Post Performance</b>",
+        f"<i>{now.strftime('%A, %B %d, %Y')}</i>",
+        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n",
+    ]
 
+    # ── Today's post ──────────────────────────────────────
+    if today_post:
+        s = today_post["stats"]
+        lines += [
+            "<b>📅 TODAY'S POST:</b>",
+            f"📌 {today_post['topic'][:80]}",
+            f"👁️ {s.get('impressionCount', 0):,} impressions  "
+            f"❤️ {s.get('likeCount', 0):,}  "
+            f"💬 {s.get('commentCount', 0):,}  "
+            f"🔗 {s.get('clickCount', 0):,} clicks",
+            f"📈 Engagement: {s.get('engagementRate', 0)}%\n",
+            f"{'─'*35}\n",
+        ]
+    else:
+        lines.append("<i>Today's post stats will appear after 24h.</i>\n")
+        lines.append(f"{'─'*35}\n")
+
+    # ── This week's rolling summary ────────────────────────
     total_impressions = sum(e["stats"].get("impressionCount", 0) for e in recent)
     total_likes       = sum(e["stats"].get("likeCount", 0) for e in recent)
     total_comments    = sum(e["stats"].get("commentCount", 0) for e in recent)
+    best = max(recent, key=lambda e: e["stats"].get("impressionCount", 0))
 
-    lines = [
-        "📊 <b>Fincare SMM — Weekly Performance Report</b>",
-        f"<i>{datetime.now().strftime('%B %d, %Y')}</i>",
-        f"{'─'*35}\n",
-        f"<b>Posts this week:</b> {len(recent)}",
-        f"<b>Total impressions:</b> {total_impressions:,}",
-        f"<b>Total likes:</b> {total_likes:,}",
-        f"<b>Total comments:</b> {total_comments:,}",
-        f"\n{'─'*35}",
-        f"<b>🏆 BEST POST THIS WEEK:</b>",
+    lines += [
+        f"<b>📆 THIS WEEK ({len(recent)} posts):</b>",
+        f"👁️ Total impressions: <b>{total_impressions:,}</b>",
+        f"❤️ Likes: {total_likes:,}  💬 Comments: {total_comments:,}",
+        f"\n<b>🏆 Best post:</b>",
         f"📌 {best['topic'][:80]}",
-        f"🏛️ Pillar: {best.get('pillar', '—')}",
-        f"👁️ Impressions: {best['stats']['impressionCount']:,}",
-        f"❤️ Likes: {best['stats']['likeCount']:,}",
-        f"💬 Comments: {best['stats']['commentCount']:,}",
-        f"🔗 Clicks: {best['stats']['clickCount']:,}",
+        f"👁️ {best['stats']['impressionCount']:,} impressions · 🏛️ {best.get('pillar', '—')}",
     ]
 
     # Pillar breakdown
@@ -194,13 +224,13 @@ def build_weekly_report() -> str:
         pillar_stats[p]["count"] += 1
 
     if len(pillar_stats) > 1:
-        lines.append(f"\n{'─'*35}\n<b>📊 BY CONTENT PILLAR:</b>")
+        lines.append(f"\n{'─'*35}\n<b>📊 BY PILLAR:</b>")
         for pillar, data in sorted(pillar_stats.items(), key=lambda x: x[1]["impressions"], reverse=True):
             avg = data["impressions"] // data["count"] if data["count"] else 0
-            lines.append(f"  {pillar}: {data['impressions']:,} impressions ({data['count']} posts, avg {avg:,})")
+            lines.append(f"  {pillar}: {data['impressions']:,} impr · {data['count']} posts · avg {avg:,}")
 
     lines.append(f"\n{'─'*35}")
-    lines.append("<i>Next report: Monday.</i>")
+    lines.append(f"<i>🕐 Stats last updated: {last_updated}</i>")
     return "\n".join(lines)
 
 
@@ -215,16 +245,11 @@ def send_weekly_performance_report():
 def run_stats_check():
     """
     Main orchestrator called by GitHub Actions daily at 9am UTC.
-    Fetches pending stats + sends weekly report on Mondays + monthly report on 1st.
+    Fetches pending stats and updates the performance log.
+    Weekly and monthly reports are served on-demand via the morning briefing buttons —
+    no automatic Telegram sends here.
     """
     logger.step("Running stats check...")
     updated = check_pending_stats()
     logger.info(f"Stats updated for {updated} posts.")
-
-    if datetime.now().weekday() == 0:  # Monday
-        logger.step("Monday detected — sending weekly performance report...")
-        send_weekly_performance_report()
-
-    # Monthly report on the 1st of each month
-    from src.monthly_report import run_monthly_report_if_due
-    run_monthly_report_if_due()
+    logger.success("Performance log updated — data available via 📊 Post Review button in morning briefing.")

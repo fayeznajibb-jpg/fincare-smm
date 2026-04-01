@@ -157,23 +157,38 @@ def build_telegram_calendar_message(plan: list) -> str:
     except Exception:
         pass
 
+    # Show last-generated timestamp so user knows how fresh the plan is
+    try:
+        with open(CALENDAR_PATH) as f:
+            import json as _json
+            cal_data     = _json.load(f)
+            generated_at = cal_data.get("generated_at", "")[:16].replace("T", " ") + " UTC" if cal_data.get("generated_at") else "this week"
+    except Exception:
+        generated_at = "this week"
+
     lines += [
         f"\n{'─'*35}",
         "<i>Override a day: reply \"Wednesday: your topic idea\"</i>",
         "<i>Schedule a campaign: reply \"CAMPAIGN 2026-05-01 Campaign name\"</i>",
+        f"<i>🕐 Plan generated: {generated_at}</i>",
+        f"\n{'─'*35}",
+        "⏳ <b>LinkedIn company page API pending approval.</b>\n"
+        "Check: linkedin.com/developers/apps → your app → Products tab\n"
+        "Once approved, regenerate token and update LINKEDIN_ACCESS_TOKEN in GitHub Secrets.",
     ]
     return "\n".join(lines)
 
 
 def send_weekly_calendar():
-    """Generates and sends the weekly calendar. Called every Monday by GitHub Actions."""
-    from src.telegram_bot import send_notification
+    """
+    Generates and saves the weekly calendar. Called every Monday by GitHub Actions.
+    Does NOT send to Telegram — the main pipeline serves it via the
+    📅 Weekly Plan button in the morning briefing.
+    """
     logger.step("Generating weekly content calendar...")
     plan = get_week_plan()
     save_calendar(plan)
-    message = build_telegram_calendar_message(plan)
-    send_notification(message)
-    logger.success(f"Weekly calendar sent — {len(plan)} days planned.")
+    logger.success(f"Weekly calendar saved — {len(plan)} days planned. Will be served via morning briefing button.")
 
 
 def get_todays_topic_override() -> dict | None:

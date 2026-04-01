@@ -52,6 +52,7 @@ jobs:
           IDEOGRAM_API_KEY:           ${{ secrets.IDEOGRAM_API_KEY }}
           APPROVAL_TIMEOUT_HOURS:     "4"
           TIMEZONE:                   "UTC"
+          LINKEDIN_MANUAL:            ${{ secrets.LINKEDIN_MANUAL }}
         run: python src/main.py
 
       - name: Upload logs on failure

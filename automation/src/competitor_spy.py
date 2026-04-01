@@ -114,11 +114,11 @@ def _build_report(competitor_data: dict, niche_data: dict) -> str:
 
 def run_competitor_spy():
     """
-    Main function. Fetches competitor + niche headlines, builds report, sends to Telegram.
-    Called by GitHub Actions every Monday morning.
+    Main function. Fetches competitor + niche headlines and saves to logs/.
+    Called by GitHub Actions every Monday morning (7am).
+    Does NOT send to Telegram — the main pipeline (8am) serves the data
+    via the 🕵️ Competitors button in the morning briefing.
     """
-    from src.telegram_bot import send_notification
-
     logger.step("Starting weekly competitor intelligence run...")
 
     competitor_data = {}
@@ -129,7 +129,7 @@ def run_competitor_spy():
     for name, url in NICHE_FEEDS.items():
         niche_data[name] = _fetch_headlines(name, url)
 
-    # Save raw data
+    # Save raw data — read by telegram_bot._menu_competitors() on demand
     os.makedirs("logs", exist_ok=True)
     week_key = datetime.now().strftime("%Y_W%W")
     log_path = f"logs/competitor_spy_{week_key}.json"
@@ -137,9 +137,6 @@ def run_competitor_spy():
         json.dump({"competitors": competitor_data, "niche": niche_data}, f, indent=2)
     logger.info(f"Raw data saved: {log_path}")
 
-    report = _build_report(competitor_data, niche_data)
-    send_notification(report)
-    logger.success("Competitor intelligence report sent.")
-
+    logger.success("Competitor data ready — will be served via morning briefing button.")
     total = sum(len(v) for v in competitor_data.values())
     return {"success": True, "competitors_checked": len(competitor_data), "headlines_found": total}
