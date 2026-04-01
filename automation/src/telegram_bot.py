@@ -1,4 +1,5 @@
 import os
+import re
 import time
 import uuid
 import requests
@@ -8,6 +9,22 @@ from utils.validators import validate_telegram_chat_id
 logger = SecureLogger("telegram_bot")
 
 TELEGRAM_API = "https://api.telegram.org/bot{token}/{method}"
+
+# Platform display names for messages
+PLATFORM_LABELS = {
+    "linkedin_company": ("🏢", "LinkedIn Company"),
+    "instagram":        ("📸", "Instagram"),
+    "tiktok":           ("🎵", "TikTok"),
+    "threads":          ("🧵", "Threads"),
+}
+
+# Maps platform key → posts dict key
+PLATFORM_POST_KEY = {
+    "linkedin_company": "linkedin_company",
+    "instagram":        "instagram_caption",
+    "tiktok":           "tiktok_caption",
+    "threads":          "threads_post",
+}
 
 
 def _api(token: str, method: str, payload: dict = None) -> dict:
@@ -22,121 +39,8 @@ def _api(token: str, method: str, payload: dict = None) -> dict:
         raise
 
 
-def send_approval_request(topic: dict, posts: dict, image_path: str = None) -> str:
-    """
-    Sends a multi-message approval flow to Telegram:
-      1. Header card (topic info)
-      2. One message per platform with FULL post text
-      3. Final message with action buttons only
-
-    Returns a unique session_id used to match the callback response.
-    Security: each session has a unique ID to prevent replay attacks.
-    """
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
-    chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
-    if not token or not chat_id:
-        raise EnvironmentError("TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set.")
-
-    session_id = str(uuid.uuid4())[:8]
-
-    linkedin_c = posts.get("linkedin_company") or ""
-    instagram  = posts.get("instagram_caption") or ""
-    tiktok     = posts.get("tiktok_caption") or ""
-    threads    = posts.get("threads_post") or ""
-
-    image_line = f"\n<b>🖼️ IMAGE:</b> ✅ Attached — <i>{os.path.basename(image_path)}</i>" if image_path else ""
-
-    # ── Message 1: Topic header ─────────────────────────────────
-    header = (
-        f"<b>🤖 FINCARE — DAILY POST REVIEW</b>\n"
-        f"{'─' * 35}\n"
-        f"<b>📌 TOPIC:</b> {topic.get('topic', '')}\n"
-        f"<b>🎯 ANGLE:</b> {topic.get('angle', '')}\n"
-        f"<b>📊 KEY STAT:</b> {topic.get('key_stat', '')}\n"
-        f"<b>🏛️ PILLAR:</b> {topic.get('content_pillar', '—')}  "
-        f"<b>⚡ TRIGGER:</b> {topic.get('emotional_trigger', '—')}"
-        f"{image_line}\n"
-        f"{'─' * 35}\n"
-        f"<i>Full posts below. Tap a button at the end to act.</i>"
-    )
-    _send_message(token, chat_id, header)
-
-    # ── Message 2: LinkedIn Company (full) ──────────────────────
-    if linkedin_c:
-        _send_message(token, chat_id,
-            f"<b>🏢 LINKEDIN COMPANY</b>  ({len(linkedin_c)} chars)\n"
-            f"{'─' * 35}\n"
-            f"{linkedin_c}"
-        )
-
-    # ── Message 3: Instagram (full) ─────────────────────────────
-    if instagram:
-        _send_message(token, chat_id,
-            f"<b>📸 INSTAGRAM</b>  ({len(instagram)} chars)\n"
-            f"{'─' * 35}\n"
-            f"{instagram}"
-        )
-
-    # ── Message 4: TikTok + Threads ─────────────────────────────
-    tiktok_threads = ""
-    if tiktok:
-        tiktok_threads += f"<b>🎵 TIKTOK</b>  ({len(tiktok)} chars)\n{'─' * 35}\n{tiktok}\n\n"
-    if threads:
-        tiktok_threads += f"<b>🧵 THREADS</b>  ({len(threads)} chars)\n{'─' * 35}\n{threads}"
-    if tiktok_threads.strip():
-        _send_message(token, chat_id, tiktok_threads.strip())
-
-    # ── Message 5: Action buttons only ──────────────────────────
-    # Build per-platform rows only for platforms that have content
-    platform_row = []
-    if linkedin_c:
-        platform_row.append({"text": "🏢 LinkedIn Only", "callback_data": f"post_linkedin_{session_id}"})
-    if instagram:
-        platform_row.append({"text": "📸 Instagram Only", "callback_data": f"post_instagram_{session_id}"})
-
-    tiktok_threads_row = []
-    if tiktok:
-        tiktok_threads_row.append({"text": "🎵 TikTok Only", "callback_data": f"post_tiktok_{session_id}"})
-    if threads:
-        tiktok_threads_row.append({"text": "🧵 Threads Only", "callback_data": f"post_threads_{session_id}"})
-
-    keyboard_rows = [
-        [
-            {"text": "✅ Post ALL",          "callback_data": f"approve_{session_id}"},
-            {"text": "❌ Skip Today",        "callback_data": f"reject_{session_id}"}
-        ],
-    ]
-    if platform_row:
-        keyboard_rows.append(platform_row)
-    if tiktok_threads_row:
-        keyboard_rows.append(tiktok_threads_row)
-    keyboard_rows += [
-        [
-            {"text": "✏️ Edit — Give Feedback",     "callback_data": f"edit_{session_id}"},
-            {"text": "💡 My Idea — I'll Set Topic", "callback_data": f"idea_{session_id}"}
-        ],
-        [
-            {"text": "🖼️ Add / Change Image", "callback_data": f"image_{session_id}"}
-        ]
-    ]
-
-    result = _api(token, "sendMessage", {
-        "chat_id":      chat_id,
-        "text":         "👆 <b>Review the posts above, then choose what to post:</b>",
-        "parse_mode":   "HTML",
-        "reply_markup": {"inline_keyboard": keyboard_rows},
-    })
-
-    if not result.get("ok"):
-        raise RuntimeError(f"Failed to send Telegram approval buttons: {result}")
-
-    logger.success(f"Approval request sent to Telegram (session: {session_id})")
-    return session_id
-
-
 def _send_message(token: str, chat_id: str, text: str):
-    """Sends a plain HTML message, splitting if over Telegram's 4096-char limit."""
+    """Sends an HTML message, splitting at 4096-char Telegram limit."""
     MAX = 4096
     while text:
         chunk, text = text[:MAX], text[MAX:]
@@ -147,31 +51,201 @@ def _send_message(token: str, chat_id: str, text: str):
                 "parse_mode": "HTML",
             })
         except Exception:
-            # Fallback: strip HTML tags and retry
-            import re
             plain = re.sub(r"<[^>]+>", "", chunk)
-            _api(token, "sendMessage", {"chat_id": chat_id, "text": plain})
+            try:
+                _api(token, "sendMessage", {"chat_id": chat_id, "text": plain})
+            except Exception:
+                pass
 
 
-def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool, str]:
+def _send_photo(token: str, chat_id: str, image_path: str, caption: str):
+    """Sends a photo with caption to Telegram. Caption limited to 1024 chars."""
+    url = TELEGRAM_API.format(token=token, method="sendPhoto")
+    caption = caption[:1024]
+    try:
+        with open(image_path, "rb") as img:
+            resp = requests.post(
+                url,
+                data={"chat_id": chat_id, "caption": caption, "parse_mode": "HTML"},
+                files={"photo": img},
+                timeout=30
+            )
+        resp.raise_for_status()
+    except Exception as e:
+        logger.warning(f"Photo send failed ({type(e).__name__}) — sending text only.")
+        _send_message(token, chat_id, caption)
+
+
+def _answer_callback(token: str, callback_id: str, text: str):
+    """Answers a callback query to dismiss the Telegram loading spinner."""
+    try:
+        _api(token, "answerCallbackQuery", {
+            "callback_query_id": callback_id,
+            "text": text
+        })
+    except Exception:
+        pass
+
+
+def send_approval_request(topic: dict, posts: dict, image_path: str = None) -> str:
     """
-    Polls Telegram for the user's approval or rejection response.
-    Security: only accepts callbacks matching the current session_id
-    and from the authorised chat ID.
+    Sends the approval flow to Telegram:
+      1. Topic header card
+      2. Platform picker buttons (tap to preview each post)
 
-    Returns (approved: bool, feedback: str)
+    Returns session_id used to match callbacks.
     """
     token = os.getenv("TELEGRAM_BOT_TOKEN")
+    chat_id = os.getenv("TELEGRAM_CHAT_ID")
+
+    if not token or not chat_id:
+        raise EnvironmentError("TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID not set.")
+
+    session_id = str(uuid.uuid4())[:8]
+
+    image_line = f"\n<b>🖼️ IMAGE:</b> ✅ Attached — <i>{os.path.basename(image_path)}</i>" if image_path else ""
+
+    # ── Message 1: Topic header ────────────────────────────────
+    _send_message(token, chat_id,
+        f"<b>🤖 FINCARE — DAILY POST REVIEW</b>\n"
+        f"{'─' * 35}\n"
+        f"<b>📌 TOPIC:</b> {topic.get('topic', '')}\n"
+        f"<b>🎯 ANGLE:</b> {topic.get('angle', '')}\n"
+        f"<b>📊 KEY STAT:</b> {topic.get('key_stat', '')}\n"
+        f"<b>🏛️ PILLAR:</b> {topic.get('content_pillar', '—')}  "
+        f"<b>⚡ TRIGGER:</b> {topic.get('emotional_trigger', '—')}"
+        f"{image_line}\n"
+        f"{'─' * 35}\n"
+        f"<i>Tap a platform to preview its post and image. Or post all at once.</i>"
+    )
+
+    # ── Message 2: Platform picker ──────────────────────────────
+    _send_platform_picker(token, chat_id, session_id, posts)
+
+    logger.success(f"Approval request sent (session: {session_id})")
+    return session_id
+
+
+def _send_platform_picker(token: str, chat_id: str, session_id: str, posts: dict):
+    """Sends the platform picker keyboard."""
+    linkedin_c = posts.get("linkedin_company") or ""
+    instagram  = posts.get("instagram_caption") or ""
+    tiktok     = posts.get("tiktok_caption") or ""
+    threads    = posts.get("threads_post") or ""
+
+    view_row = []
+    if linkedin_c:
+        view_row.append({"text": "🏢 LinkedIn", "callback_data": f"view_linkedin_company_{session_id}"})
+    if instagram:
+        view_row.append({"text": "📸 Instagram", "callback_data": f"view_instagram_{session_id}"})
+
+    view_row2 = []
+    if tiktok:
+        view_row2.append({"text": "🎵 TikTok", "callback_data": f"view_tiktok_{session_id}"})
+    if threads:
+        view_row2.append({"text": "🧵 Threads", "callback_data": f"view_threads_{session_id}"})
+
+    keyboard_rows = [
+        [
+            {"text": "✅ Post ALL",    "callback_data": f"approve_{session_id}"},
+            {"text": "❌ Skip Today", "callback_data": f"reject_{session_id}"}
+        ],
+    ]
+    if view_row:
+        keyboard_rows.append(view_row)
+    if view_row2:
+        keyboard_rows.append(view_row2)
+    keyboard_rows += [
+        [
+            {"text": "✏️ Edit All",  "callback_data": f"edit_{session_id}"},
+            {"text": "💡 My Idea",   "callback_data": f"idea_{session_id}"}
+        ],
+    ]
+
+    _api(token, "sendMessage", {
+        "chat_id":      chat_id,
+        "text":         "👆 <b>Choose a platform to preview, or post all at once:</b>",
+        "parse_mode":   "HTML",
+        "reply_markup": {"inline_keyboard": keyboard_rows},
+    })
+
+
+def _send_platform_preview(token: str, chat_id: str, session_id: str,
+                            platform: str, posts: dict, topic: dict, image_path: str | None):
+    """
+    Generates an image (if possible) and sends the full post as photo+caption.
+    Then sends per-platform action buttons below it.
+    """
+    from src.image_generator import generate_post_image
+
+    emoji, label = PLATFORM_LABELS.get(platform, ("📌", platform))
+    post_key     = PLATFORM_POST_KEY.get(platform, platform)
+    post_text    = posts.get(post_key) or ""
+
+    if not post_text:
+        _send_message(token, chat_id, f"<i>No {label} post available.</i>")
+        return
+
+    # Try to generate image (skips silently if no API key)
+    if platform == "tiktok":
+        # TikTok is draft-only — no image, just show script
+        _send_message(token, chat_id,
+            f"{emoji} <b>{label} SCRIPT</b>\n"
+            f"{'─' * 35}\n"
+            f"{post_text}\n\n"
+            f"<i>ℹ️ TikTok posts saved as draft — publish manually until video API is live.</i>"
+        )
+    else:
+        # Generate or use existing image
+        generated_path = image_path or generate_post_image(topic, posts, platform)
+        caption = f"{emoji} <b>{label}</b>\n{'─' * 35}\n{post_text}"
+
+        if generated_path and os.path.exists(generated_path):
+            _send_photo(token, chat_id, generated_path, caption)
+        else:
+            _send_message(token, chat_id, caption)
+
+    # Per-platform action buttons
+    _api(token, "sendMessage", {
+        "chat_id":    chat_id,
+        "text":       f"What would you like to do with the {label} post?",
+        "parse_mode": "HTML",
+        "reply_markup": {"inline_keyboard": [
+            [
+                {"text": f"✅ Post This",      "callback_data": f"post_this_{platform}_{session_id}"},
+                {"text": f"✏️ Edit This",      "callback_data": f"edit_this_{platform}_{session_id}"},
+            ],
+            [
+                {"text": f"🔄 New Image",      "callback_data": f"regen_{platform}_{session_id}"},
+                {"text": f"⏭ Back to Menu",   "callback_data": f"back_{session_id}"},
+            ]
+        ]}
+    })
+
+
+def wait_for_approval(session_id: str, timeout_hours: float = 4.0,
+                       posts: dict = None, topic: dict = None,
+                       image_path: str = None) -> tuple[bool, str]:
+    """
+    State-machine approval loop.
+    States: "picker" | "viewing:{platform}"
+    Returns (approved: bool, feedback: str)
+    """
+    token            = os.getenv("TELEGRAM_BOT_TOKEN")
     expected_chat_id = os.getenv("TELEGRAM_CHAT_ID")
 
     if not token or not expected_chat_id:
         raise EnvironmentError("TELEGRAM credentials not set.")
 
-    timeout_seconds = int(timeout_hours * 3600)
-    poll_interval = 30  # seconds between polls
-    elapsed = 0
-    last_update_id = 0
-    waiting_for_text = None  # "edit" or "idea" after user taps those buttons
+    timeout_seconds  = int(timeout_hours * 3600)
+    poll_interval    = 30
+    elapsed          = 0
+    last_update_id   = 0
+    state            = "picker"
+    waiting_for_text = None
+    current_posts    = posts or {}
+    current_topic    = topic or {}
+    current_image    = image_path
 
     logger.step(f"Waiting for approval (timeout: {timeout_hours}h, session: {session_id})...")
 
@@ -181,8 +255,8 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
 
         try:
             result = _api(token, "getUpdates", {
-                "offset": last_update_id + 1,
-                "timeout": 25,
+                "offset":          last_update_id + 1,
+                "timeout":         25,
                 "allowed_updates": ["callback_query", "message"]
             })
         except Exception as e:
@@ -195,137 +269,159 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0) -> tuple[bool
         for update in result["result"]:
             last_update_id = update["update_id"]
 
-            # Handle inline keyboard callback
+            # ── Callback buttons ───────────────────────────────────
             if "callback_query" in update:
-                callback = update["callback_query"]
-                from_chat = str(callback.get("from", {}).get("id", ""))
-                data = callback.get("data", "")
+                cb        = update["callback_query"]
+                from_chat = str(cb.get("from", {}).get("id", ""))
+                data      = cb.get("data", "")
 
-                # Security check — only accept from authorised chat ID
                 if not validate_telegram_chat_id(from_chat, expected_chat_id):
                     logger.warning(f"Rejected callback from unauthorised user: {from_chat}")
                     continue
 
-                # Security check — only accept callbacks matching this session
+                # ── Global actions (available from picker) ────────
                 if data == f"approve_{session_id}":
-                    _answer_callback(token, callback["id"], "✅ Approved! Posting to all platforms...")
+                    _answer_callback(token, cb["id"], "✅ Posting to all platforms...")
                     logger.success("Post APPROVED (all platforms).")
                     return True, ""
 
-                elif data == f"post_linkedin_{session_id}":
-                    _answer_callback(token, callback["id"], "🏢 Posting to LinkedIn only...")
-                    logger.success("Post APPROVED for LinkedIn only.")
-                    return True, "PLATFORMS:linkedin_company"
-
-                elif data == f"post_instagram_{session_id}":
-                    _answer_callback(token, callback["id"], "📸 Posting to Instagram only...")
-                    logger.success("Post APPROVED for Instagram only.")
-                    return True, "PLATFORMS:instagram"
-
-                elif data == f"post_tiktok_{session_id}":
-                    _answer_callback(token, callback["id"], "🎵 Saving TikTok draft only...")
-                    logger.success("Post APPROVED for TikTok only.")
-                    return True, "PLATFORMS:tiktok"
-
-                elif data == f"post_threads_{session_id}":
-                    _answer_callback(token, callback["id"], "🧵 Posting to Threads only...")
-                    logger.success("Post APPROVED for Threads only.")
-                    return True, "PLATFORMS:threads"
-
-                elif data == f"reject_{session_id}":
-                    _answer_callback(token, callback["id"], "❌ Rejected. Skipping today.")
+                if data == f"reject_{session_id}":
+                    _answer_callback(token, cb["id"], "❌ Skipping today.")
                     logger.info("Post REJECTED by user.")
                     return False, "Rejected by user"
 
-                elif data == f"edit_{session_id}":
-                    _answer_callback(token, callback["id"], "✏️ Got it! Send me your feedback.")
-                    send_notification("✏️ <b>What should I change?</b>\n\nJust type your feedback and I'll rewrite the posts.\n\n<i>Example: \"Make the tone more casual\" or \"Use a different hook about FOMO\"</i>")
+                if data == f"edit_{session_id}":
+                    _answer_callback(token, cb["id"], "✏️ Send me your feedback.")
+                    send_notification(
+                        "✏️ <b>What should I change?</b>\n\n"
+                        "Type your feedback and I'll rewrite all posts.\n\n"
+                        "<i>Example: \"Make the tone more casual\" or \"Different hook about FOMO\"</i>"
+                    )
                     waiting_for_text = "edit"
-                    logger.info("User requested EDIT — waiting for feedback text...")
+                    state = "picker"
+                    continue
 
-                elif data == f"idea_{session_id}":
-                    _answer_callback(token, callback["id"], "💡 Love it! Tell me your idea.")
-                    send_notification("💡 <b>What's your idea or topic?</b>\n\nJust type it and I'll write fresh posts around it.\n\n<i>Example: \"Why young people are scared to start investing\" or \"The power of compound interest\"</i>")
+                if data == f"idea_{session_id}":
+                    _answer_callback(token, cb["id"], "💡 Tell me your idea.")
+                    send_notification(
+                        "💡 <b>What's your topic idea?</b>\n\n"
+                        "Type it and I'll write fresh posts around it.\n\n"
+                        "<i>Example: \"Why people panic sell\" or \"Power of DCA\"</i>"
+                    )
                     waiting_for_text = "idea"
-                    logger.info("User requested own IDEA — waiting for topic text...")
+                    state = "picker"
+                    continue
 
-                elif data == f"image_{session_id}":
-                    _answer_callback(token, callback["id"], "🖼️ Send me the image!")
-                    send_notification("🖼️ <b>Send me the image</b> you want to attach to this post.\n\nJust send it as a photo in this chat.")
-                    waiting_for_text = "image"
-                    logger.info("User requested image — waiting for photo...")
+                if data == f"back_{session_id}":
+                    _answer_callback(token, cb["id"], "↩️ Back to menu.")
+                    state = "picker"
+                    if current_posts is not None:
+                        _send_platform_picker(token, expected_chat_id, session_id, current_posts)
+                    continue
 
-            # Handle text and photo replies
+                # ── View platform (from picker) ───────────────────
+                for platform in PLATFORM_LABELS:
+                    if data == f"view_{platform}_{session_id}":
+                        _answer_callback(token, cb["id"], "⏳ Generating preview...")
+                        state = f"viewing:{platform}"
+                        if current_posts is not None:
+                            _send_platform_preview(
+                                token, expected_chat_id, session_id,
+                                platform, current_posts, current_topic or {}, current_image
+                            )
+                        break
+
+                # ── Post this platform only ───────────────────────
+                for platform in PLATFORM_LABELS:
+                    if data == f"post_this_{platform}_{session_id}":
+                        _answer_callback(token, cb["id"], f"✅ Posting {PLATFORM_LABELS[platform][1]}...")
+                        logger.success(f"Post APPROVED for {platform} only.")
+                        return True, f"PLATFORMS:{platform}"
+
+                # ── Edit this platform only ───────────────────────
+                for platform in PLATFORM_LABELS:
+                    if data == f"edit_this_{platform}_{session_id}":
+                        _answer_callback(token, cb["id"], "✏️ What should I change?")
+                        send_notification(
+                            f"✏️ <b>What should I change in the {PLATFORM_LABELS[platform][1]} post?</b>\n\n"
+                            "<i>Just type your feedback.</i>"
+                        )
+                        waiting_for_text = f"edit_platform:{platform}"
+                        break
+
+                # ── Regenerate image ──────────────────────────────
+                for platform in PLATFORM_LABELS:
+                    if data == f"regen_{platform}_{session_id}":
+                        _answer_callback(token, cb["id"], "🔄 Generating new image...")
+                        send_notification("🔄 <b>Generating a new image...</b> Give me a moment.")
+                        if current_posts is not None:
+                            # Clear cached image path so a fresh one is generated
+                            _send_platform_preview(
+                                token, expected_chat_id, session_id,
+                                platform, current_posts, current_topic or {}, None
+                            )
+                        break
+
+            # ── Text / Photo messages ──────────────────────────────
             if "message" in update:
-                msg = update["message"]
+                msg       = update["message"]
                 from_chat = str(msg.get("chat", {}).get("id", ""))
-                text = msg.get("text", "").strip()
+                text      = msg.get("text", "").strip()
 
                 if not validate_telegram_chat_id(from_chat, expected_chat_id):
                     continue
 
-                # Handle photo upload when waiting for image
-                if waiting_for_text == "image" and "photo" in msg:
-                    photo = msg["photo"][-1]  # Largest available size
-                    file_id = photo["file_id"]
-                    try:
-                        image_path = _download_telegram_photo(token, file_id)
-                        logger.success(f"Image downloaded: {image_path}")
-                        return False, f"IMAGE: {image_path}"
-                    except Exception as e:
-                        logger.error(f"Image download failed: {type(e).__name__}")
-                        send_notification("⚠️ Couldn't download image. Please try again or skip.")
-                    continue
-
-                # Campaign creation — detected anytime, not just when waiting
+                # Campaign command — detected anytime
                 if text.upper().startswith("CAMPAIGN "):
-                    from src.campaign_manager import parse_campaign_command, create_campaign
+                    from src.campaign_manager import parse_campaign_command
                     parsed = parse_campaign_command(text)
                     if parsed:
-                        logger.info(f"Campaign command received: {parsed['name']} on {parsed['date']}")
+                        logger.info(f"Campaign command: {parsed['name']} on {parsed['date']}")
                         return False, f"CAMPAIGN_CREATE:{parsed['date']}:{parsed['name']}"
                     else:
                         send_notification(
                             "⚠️ Invalid campaign format.\n\n"
-                            "Use: <code>CAMPAIGN YYYY-MM-DD Campaign name</code>\n"
-                            "Example: <code>CAMPAIGN 2026-05-01 Fincare hits 1000 users</code>"
+                            "Use: <code>CAMPAIGN YYYY-MM-DD Campaign name</code>"
                         )
+                    continue
 
-                # If we're waiting for edit feedback or idea text
+                # Global edit feedback
                 if waiting_for_text == "edit" and text:
-                    logger.info(f"Edit feedback received: {text[:80]}")
-                    return False, f"EDIT: {text}"
+                    logger.info(f"Edit feedback: {text[:80]}")
+                    return False, f"EDIT:{text}"
 
+                # Global idea
                 if waiting_for_text == "idea" and text:
-                    logger.info(f"User idea received: {text[:80]}")
-                    return False, f"IDEA: {text}"
+                    logger.info(f"User idea: {text[:80]}")
+                    return False, f"IDEA:{text}"
 
-                # Legacy text commands still supported
+                # Per-platform edit feedback
+                if waiting_for_text and waiting_for_text.startswith("edit_platform:") and text:
+                    platform = waiting_for_text.split(":", 1)[1]
+                    logger.info(f"Edit feedback for {platform}: {text[:80]}")
+                    return False, f"EDIT_PLATFORM:{platform}:{text}"
+
+                # Legacy text commands
                 if text.upper().startswith("APPROVE"):
-                    logger.success("Post APPROVED via text reply.")
                     return True, ""
-
                 if text.upper().startswith("REJECT"):
                     feedback = text[6:].strip() if len(text) > 6 else ""
-                    logger.info(f"Post REJECTED via text reply. Feedback: {feedback}")
                     return False, feedback
 
         remaining_mins = (timeout_seconds - elapsed) // 60
-        if elapsed % 300 == 0:  # Log every 5 minutes
-            logger.step(f"Still waiting for approval... ({remaining_mins}min remaining)")
+        if elapsed % 300 == 0:
+            logger.step(f"Still waiting... ({remaining_mins}min remaining)")
 
-    logger.warning(f"Approval timeout reached after {timeout_hours}h. Skipping today's post.")
+    logger.warning(f"Approval timeout after {timeout_hours}h.")
     return False, "Timeout — no response received"
 
 
 def send_notification(message: str):
-    """Sends a plain notification message to Telegram (no approval needed)."""
-    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    """Sends a plain notification to Telegram."""
+    token   = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
-
     if not token or not chat_id:
         return
-
     try:
         _send_message(token, chat_id, message)
     except Exception:
@@ -333,14 +429,12 @@ def send_notification(message: str):
 
 
 def _download_telegram_photo(token: str, file_id: str) -> str:
-    """Downloads a photo from Telegram and saves it to a temp file. Returns the file path."""
-    import tempfile
-
-    result = _api(token, "getFile", {"file_id": file_id})
+    """Downloads a user-uploaded photo from Telegram. Returns local file path."""
+    result    = _api(token, "getFile", {"file_id": file_id})
     file_path = result["result"]["file_path"]
-    ext = file_path.split(".")[-1] if "." in file_path else "jpg"
+    ext       = file_path.split(".")[-1] if "." in file_path else "jpg"
 
-    url = f"https://api.telegram.org/file/bot{token}/{file_path}"
+    url  = f"https://api.telegram.org/file/bot{token}/{file_path}"
     resp = requests.get(url, timeout=30)
     resp.raise_for_status()
 
@@ -349,18 +443,4 @@ def _download_telegram_photo(token: str, file_id: str) -> str:
     local_path = f"drafts/images/post_image_{datetime.now().strftime('%Y%m%d_%H%M%S')}.{ext}"
     with open(local_path, "wb") as f:
         f.write(resp.content)
-
     return local_path
-
-
-def _answer_callback(token: str, callback_id: str, text: str):
-    """Sends a response to a Telegram callback query (dismisses the loading state)."""
-    try:
-        _api(token, "answerCallbackQuery", {
-            "callback_query_id": callback_id,
-            "text": text
-        })
-    except Exception:
-        pass  # Non-critical
-
-

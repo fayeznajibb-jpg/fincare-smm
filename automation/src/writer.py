@@ -295,6 +295,61 @@ Turn this into a structured topic for Fincare's social media. Return ONLY raw JS
     return topic, posts
 
 
+def rewrite_single_platform(topic: dict, posts: dict, platform: str, feedback: str) -> dict:
+    """
+    Rewrites only one platform's post based on user feedback.
+    All other platforms remain unchanged.
+    Called when user taps ✏️ Edit This on a specific platform view.
+    """
+    logger.step(f"Rewriting {platform} post with feedback: {feedback[:80]}")
+
+    api_key = os.getenv("ANTHROPIC_API_KEY")
+    if not api_key:
+        raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
+
+    voice_path = os.path.join(os.path.dirname(__file__), '..', 'prompts', 'brand_voice.txt')
+    with open(voice_path, 'r', encoding='utf-8') as f:
+        brand_voice = f.read()
+
+    current_post = posts.get(platform, "")
+
+    system_prompt = f"""You are the official social media copywriter for Fincare (aifincare.com).
+
+{brand_voice}
+
+Rewrite only the {platform} post based on the user's feedback. Keep the same topic.
+Return ONLY a raw JSON object with a single key: "{platform}"."""
+
+    user_message = f"""Topic: {topic.get('topic', '')}
+Current {platform} post:
+{current_post}
+
+User feedback: {feedback}
+
+Return JSON: {{"{platform}": "rewritten post here"}}
+Respect the character limit for {platform}."""
+
+    client = anthropic.Anthropic(api_key=api_key)
+    message = client.messages.create(
+        model="claude-haiku-4-5-20251001",
+        max_tokens=1000,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}]
+    )
+
+    raw = message.content[0].text.strip()
+    if raw.startswith("```"):
+        raw = raw.split("```")[1]
+        if raw.startswith("json"):
+            raw = raw[4:]
+        raw = raw.strip()
+
+    updated = json.loads(raw)
+    posts[platform] = updated.get(platform, current_post)
+    logger.success(f"{platform} post rewritten.")
+    return posts
+
+
 def _trim_posts(posts: dict, errors: list) -> dict:
     """
     Trims posts that exceed character limits by cutting at the last complete sentence.

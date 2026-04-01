@@ -130,6 +130,8 @@ def post_linkedin_company(content: str, hashtags: str, image_path: str = None) -
         logger.warning("LinkedIn company credentials missing — skipping.")
         return False
 
+    logger.info(f"Posting to LinkedIn org: {org_id} | Token prefix: {token[:8]}...")
+
     full_text  = f"{content}\n\n{hashtags}".strip()
     author_urn = f"urn:li:organization:{org_id}"
 

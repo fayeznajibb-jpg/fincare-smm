@@ -18,7 +18,7 @@ load_dotenv()
 from utils.logger import SecureLogger
 from utils.validators import validate_env_vars
 from src.researcher import research_topic
-from src.writer import write_posts, rewrite_posts, write_posts_from_idea
+from src.writer import write_posts, rewrite_posts, write_posts_from_idea, rewrite_single_platform
 from src.telegram_bot import send_approval_request, wait_for_approval, send_notification
 from src.publisher import publish_all
 from src.post_scheduler import init_schedule_if_missing, get_optimal_schedule
@@ -133,7 +133,10 @@ def run():
 
         logger.info("STEP 4: Waiting for approval...")
         try:
-            approved, feedback = wait_for_approval(session_id, timeout_hours)
+            approved, feedback = wait_for_approval(
+                session_id, timeout_hours,
+                posts=posts, topic=topic, image_path=image_path
+            )
         except Exception as e:
             logger.error(f"Approval wait failed: {type(e).__name__}: {str(e)}")
             sys.exit(1)
@@ -176,6 +179,23 @@ def run():
                 logger.error(f"Rewrite failed: {type(e).__name__}: {str(e)}")
                 send_notification("⚠️ <b>Rewrite failed.</b> Skipping today.")
                 sys.exit(1)
+
+        # ── Edit single platform only ─────────────────
+        if feedback.startswith("EDIT_PLATFORM:"):
+            parts = feedback.split(":", 2)
+            if len(parts) == 3:
+                platform_key, user_feedback = parts[1], parts[2]
+                logger.info(f"Rewriting {platform_key} with feedback: {user_feedback[:80]}")
+                send_notification(f"✏️ <b>Rewriting {platform_key} post...</b> Give me a moment.")
+                try:
+                    posts = rewrite_single_platform(topic, posts, platform_key, user_feedback)
+                    save_draft(topic, posts)
+                    rewrites += 1
+                    continue
+                except Exception as e:
+                    logger.error(f"Platform rewrite failed: {type(e).__name__}: {str(e)}")
+                    send_notification("⚠️ <b>Rewrite failed.</b> Skipping today.")
+                    sys.exit(1)
 
         # ── My Idea: write fresh from user's topic ────
         if feedback.startswith("IDEA:"):
@@ -255,12 +275,11 @@ def run():
 
     report = (
         "📊 <b>Fincare SMM — Daily Report</b>\n\n"
-        f"📌 Topic: {topic['topic'][:80]}...\n\n"
+        f"📌 Topic: {topic['topic'][:80]}\n\n"
         f"✅ Posted to: {', '.join(succeeded) if succeeded else 'none'}\n"
     )
     if failed:
         report += f"⚠️ Skipped: {', '.join(failed)}\n"
-    report += "\n<i>🎨 Image brief + 🎬 TikTok script sent above.</i>"
 
     send_notification(report)
     logger.success("Run complete.")
