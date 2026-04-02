@@ -476,6 +476,16 @@ def _menu_competitors(token: str, chat_id: str):
         fetched_label = "fresh as of today" if not cache_fresh else f"fetched today · {datetime.now().strftime('%H:%M UTC')}"
         report = _build_report(data.get("competitors", {}), data.get("niche", {}))
         report += f"\n\n<i>🕐 Data: {fetched_label}</i>"
+
+        # Append viral intel summary if available
+        try:
+            from src.viral_spy import load_latest_viral_intel, build_telegram_viral_summary
+            brief = load_latest_viral_intel()
+            if brief:
+                report += build_telegram_viral_summary(brief)
+        except Exception:
+            pass
+
         _send_message(token, chat_id, report)
 
     except Exception as e:
@@ -498,7 +508,8 @@ def _menu_monthly(token: str, chat_id: str):
 
 def wait_for_approval(session_id: str, timeout_hours: float = 4.0,
                        posts: dict = None, topic: dict = None,
-                       image_path: str = None) -> tuple[bool, str]:
+                       image_path: str = None,
+                       video_result: dict = None) -> tuple[bool, str]:
     """
     State-machine approval loop.
     States: "picker" | "viewing:{platform}" | "confirming:{platform}" | "skip_reason"
@@ -519,6 +530,7 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0,
     current_posts    = posts or {}
     current_topic    = topic or {}
     current_image    = image_path
+    current_video    = video_result or {}
     reminder_sent    = False
     REMINDER_AFTER   = 3600  # 1 hour — send follow-up if no approval action
 
@@ -629,6 +641,34 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0,
                     _answer_callback(token, cb["id"], "↩️ Back.")
                     state = "picker"
                     _send_platform_picker(token, expected_chat_id, session_id, current_posts)
+                    continue
+
+                # ── View TikTok — send rendered video if available ────
+                if data == f"view_tiktok_{session_id}":
+                    _answer_callback(token, cb["id"], "⏳ Loading TikTok preview...")
+                    _typing(token, expected_chat_id)
+                    state = "viewing:tiktok"
+                    video_916 = current_video.get("916")
+                    if video_916 and os.path.exists(video_916):
+                        # Send the rendered Remotion .mp4 for preview
+                        _send_video(token, expected_chat_id, video_916,
+                            caption="🎵 <b>Fincare TikTok Preview</b> · 9:16\n\nRendered with Remotion · Approve below to post.")
+                        # Post / back buttons
+                        _api(token, "sendMessage", {
+                            "chat_id": expected_chat_id,
+                            "text": "What would you like to do?",
+                            "parse_mode": "HTML",
+                            "reply_markup": {"inline_keyboard": [
+                                [{"text": "✅ Post TikTok", "callback_data": f"confirm_post_tiktok_{session_id}"}],
+                                [{"text": "↩️ Back", "callback_data": f"back_{session_id}"}],
+                            ]},
+                        })
+                    else:
+                        # No video rendered — fall back to text preview
+                        _send_platform_preview(
+                            token, expected_chat_id, session_id,
+                            "tiktok", current_posts, current_topic, current_image
+                        )
                     continue
 
                 # ── View platform ─────────────────────────────────

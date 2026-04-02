@@ -27,6 +27,8 @@ from src.image_brief import send_image_brief
 from src.tiktok_script import send_tiktok_script
 from src.weekly_calendar import mark_day_posted
 from src.campaign_manager import check_for_campaign_today, mark_campaign_posted
+from src.video_generator import generate_video
+from src.viral_spy import load_latest_viral_intel
 
 logger = SecureLogger("main")
 
@@ -115,6 +117,14 @@ def run():
         # Save draft as backup
         save_draft(topic, posts)
 
+    # ── Video generation (non-blocking, best-effort) ──────────────
+    video_result = {"916": None, "11": None, "props": None}
+    try:
+        viral_intel = load_latest_viral_intel()
+        video_result = generate_video(topic, posts, viral_intel)
+    except Exception as e:
+        logger.warning(f"Video generation failed (non-critical): {type(e).__name__}")
+
     # ── Steps 3 & 4: Approval loop (supports Edit, My Idea, Image) ──
     timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))
     MAX_REWRITES = 3
@@ -135,7 +145,8 @@ def run():
         try:
             approved, feedback = wait_for_approval(
                 session_id, timeout_hours,
-                posts=posts, topic=topic, image_path=image_path
+                posts=posts, topic=topic, image_path=image_path,
+                video_result=video_result,
             )
         except Exception as e:
             logger.error(f"Approval wait failed: {type(e).__name__}: {str(e)}")

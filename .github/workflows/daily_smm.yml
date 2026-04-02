@@ -7,6 +7,7 @@ on:
     - cron: '0 9 * * 1-5'    # Performance stats check: Mon–Fri 9am UTC
     - cron: '0 7 * * 1'      # Competitor spy: Monday 7am UTC
     - cron: '0 10,14,18 * * 1-5'  # Comment reply bot: 3x daily weekdays
+    - cron: '0 6 * * 1'           # Viral spy: Monday 6am UTC (before competitor spy + main pipeline)
 
   # Also allows manual trigger from GitHub Actions tab
   workflow_dispatch:
@@ -32,9 +33,20 @@ jobs:
           python-version: '3.11'
           cache: 'pip'
 
-      - name: Install dependencies
+      - name: Install Python dependencies
         working-directory: automation
         run: pip install -r requirements.txt
+
+      - name: Set up Node.js for Remotion
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: fincare-video/package-lock.json
+
+      - name: Install Remotion dependencies
+        working-directory: fincare-video
+        run: npm ci
 
       - name: Run SMM pipeline
         working-directory: automation
@@ -55,7 +67,7 @@ jobs:
           LINKEDIN_MANUAL:            ${{ secrets.LINKEDIN_MANUAL }}
         run: python src/main.py
 
-      - name: Upload logs on failure
+      - name: Upload artifacts on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
@@ -151,3 +163,31 @@ jobs:
           TELEGRAM_BOT_TOKEN:       ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID:         ${{ secrets.TELEGRAM_CHAT_ID }}
         run: python -c "import sys; sys.path.insert(0,'.'); from src.comment_reply_bot import run_comment_reply_bot; run_comment_reply_bot()"
+
+  # ── Skill: Viral Content Intelligence — Monday 6am UTC ──
+  viral-spy:
+    name: Weekly Viral Content Intelligence
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        working-directory: automation
+        run: pip install -r requirements.txt
+
+      - name: Run viral spy
+        working-directory: automation
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID:   ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python -c "import sys; sys.path.insert(0,'.'); from src.viral_spy import run_viral_spy; run_viral_spy()"
