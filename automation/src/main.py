@@ -27,7 +27,7 @@ from src.image_brief import send_image_brief
 from src.tiktok_script import send_tiktok_script
 from src.weekly_calendar import mark_day_posted
 from src.campaign_manager import check_for_campaign_today, mark_campaign_posted
-from src.video_generator import generate_video
+from src.video_agent import run as run_video_agent
 from src.viral_spy import load_latest_viral_intel
 
 logger = SecureLogger("main")
@@ -118,12 +118,12 @@ def run():
         save_draft(topic, posts)
 
     # ── Video generation (non-blocking, best-effort) ──────────────
-    video_result = {"916": None, "11": None, "props": None}
+    video_result = {"916": None, "11": None, "thumbnail": None, "props": None, "variants": []}
     try:
         viral_intel = load_latest_viral_intel()
-        video_result = generate_video(topic, posts, viral_intel)
+        video_result = run_video_agent(topic, posts, viral_intel)
     except Exception as e:
-        logger.warning(f"Video generation failed (non-critical): {type(e).__name__}")
+        logger.warning(f"Video agent failed (non-critical): {type(e).__name__}")
 
     # ── Steps 3 & 4: Approval loop (supports Edit, My Idea, Image) ──
     timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))

@@ -532,6 +532,7 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0,
     current_image    = image_path
     current_video    = video_result or {}
     reminder_sent    = False
+    _approved_video  = False   # tracks if user tapped ✅ Use This
     REMINDER_AFTER   = 3600  # 1 hour — send follow-up if no approval action
 
     logger.step(f"Waiting for approval (timeout: {timeout_hours}h, session: {session_id})...")
@@ -643,32 +644,118 @@ def wait_for_approval(session_id: str, timeout_hours: float = 4.0,
                     _send_platform_picker(token, expected_chat_id, session_id, current_posts)
                     continue
 
-                # ── View TikTok — send rendered video if available ────
+                # ── View TikTok — video agent preview ────────────────
                 if data == f"view_tiktok_{session_id}":
-                    _answer_callback(token, cb["id"], "⏳ Loading TikTok preview...")
+                    _answer_callback(token, cb["id"], "⏳ Loading video preview...")
                     _typing(token, expected_chat_id)
                     state = "viewing:tiktok"
-                    video_916 = current_video.get("916")
-                    if video_916 and os.path.exists(video_916):
-                        # Send the rendered Remotion .mp4 for preview
-                        _send_video(token, expected_chat_id, video_916,
-                            caption="🎵 <b>Fincare TikTok Preview</b> · 9:16\n\nRendered with Remotion · Approve below to post.")
-                        # Post / back buttons
-                        _api(token, "sendMessage", {
-                            "chat_id": expected_chat_id,
-                            "text": "What would you like to do?",
-                            "parse_mode": "HTML",
-                            "reply_markup": {"inline_keyboard": [
-                                [{"text": "✅ Post TikTok", "callback_data": f"confirm_post_tiktok_{session_id}"}],
-                                [{"text": "↩️ Back", "callback_data": f"back_{session_id}"}],
-                            ]},
-                        })
+                    has_video = current_video.get("916") and os.path.exists(current_video["916"])
+                    if has_video:
+                        try:
+                            from src.video_agent import skill_send_preview
+                            skill_send_preview(
+                                current_video,
+                                current_video.get("props", {}),
+                                current_topic,
+                                token, expected_chat_id, session_id,
+                            )
+                        except Exception as e:
+                            logger.warning(f"skill_send_preview failed: {type(e).__name__}")
+                            _send_platform_preview(token, expected_chat_id, session_id,
+                                "tiktok", current_posts, current_topic, current_image)
                     else:
-                        # No video rendered — fall back to text preview
-                        _send_platform_preview(
-                            token, expected_chat_id, session_id,
-                            "tiktok", current_posts, current_topic, current_image
-                        )
+                        # No video — fall back to text script preview
+                        _send_platform_preview(token, expected_chat_id, session_id,
+                            "tiktok", current_posts, current_topic, current_image)
+                    continue
+
+                # ── Video: New Version — full regenerate ──────────────
+                if data == f"regen_video_{session_id}":
+                    _answer_callback(token, cb["id"], "🔄 Generating new version...")
+                    _typing(token, expected_chat_id)
+                    _send_message(token, expected_chat_id,
+                        "🔄 <b>Generating a new video version...</b>\n"
+                        "This takes 3–8 minutes. I'll send it when ready.")
+                    try:
+                        from src.video_agent import run as _run_agent
+                        from src.viral_spy import load_latest_viral_intel as _load_intel
+                        new_result = _run_agent(current_topic, current_posts, _load_intel())
+                        current_video.update(new_result)
+                        from src.video_agent import skill_send_preview
+                        skill_send_preview(current_video, current_video.get("props", {}),
+                            current_topic, token, expected_chat_id, session_id)
+                    except Exception as e:
+                        _send_message(token, expected_chat_id,
+                            f"⚠️ Regeneration failed: {type(e).__name__}. Try again.")
+                    continue
+
+                # ── Video: Different Hook — render next variant ────────
+                if data == f"diff_hook_{session_id}":
+                    _answer_callback(token, cb["id"], "🎯 Trying a different hook...")
+                    _typing(token, expected_chat_id)
+                    variants = current_video.get("variants", [])
+                    current_props = current_video.get("props", {})
+                    # Find the next variant (different from current)
+                    next_props = None
+                    for v in variants:
+                        if v.get("hook") != current_props.get("hook"):
+                            next_props = v
+                            break
+                    if next_props:
+                        _send_message(token, expected_chat_id,
+                            f"🎯 <b>Rendering with hook:</b> <i>{next_props.get('hook','')}</i>\n"
+                            "This takes 3–8 minutes...")
+                        try:
+                            from src.video_agent import skill_render, skill_extract_thumbnail, skill_send_preview
+                            ts = current_video.get("timestamp", datetime.now().strftime("%Y%m%d_%H%M%S"))
+                            new_paths = skill_render(next_props, formats=["916"], timestamp=f"{ts}_v2")
+                            thumb = skill_extract_thumbnail(new_paths.get("916"), 3.0) if new_paths.get("916") else None
+                            current_video.update({"916": new_paths.get("916"), "thumbnail": thumb, "props": next_props})
+                            # Remove used variant so next tap picks another
+                            current_video["variants"] = [v for v in variants if v.get("hook") != next_props.get("hook")]
+                            skill_send_preview(current_video, next_props, current_topic, token, expected_chat_id, session_id)
+                        except Exception as e:
+                            _send_message(token, expected_chat_id, f"⚠️ Hook swap failed: {type(e).__name__}")
+                    else:
+                        _send_message(token, expected_chat_id,
+                            "No more variants available — tap 🔄 New Version for a full regenerate.")
+                    continue
+
+                # ── Video: Approve — save + send copy script ──────────
+                if data == f"approve_video_{session_id}":
+                    _answer_callback(token, cb["id"], "✅ Video saved!")
+                    _approved_video = True
+                    # Save final approved video record
+                    import json as _json
+                    os.makedirs("drafts", exist_ok=True)
+                    approved_path = f"drafts/approved_video_{datetime.now().strftime('%Y%m%d')}.json"
+                    with open(approved_path, "w") as _f:
+                        _json.dump({
+                            "props": current_video.get("props"),
+                            "916":   current_video.get("916"),
+                            "11":    current_video.get("11"),
+                            "topic": current_topic,
+                            "approved_at": datetime.now().isoformat(),
+                        }, _f, indent=2)
+                    _send_message(token, expected_chat_id,
+                        "🎬 <b>Video approved!</b> Sending your manual posting guide...")
+                    try:
+                        from src.video_agent import skill_copy_script
+                        script_msg = skill_copy_script(current_video.get("props", {}), current_posts)
+                        _send_message(token, expected_chat_id, script_msg)
+                    except Exception as e:
+                        _send_message(token, expected_chat_id, f"⚠️ Script generation failed: {type(e).__name__}")
+                    continue
+
+                # ── Video: Copy Script — manual posting guide ─────────
+                if data == f"copy_script_{session_id}":
+                    _answer_callback(token, cb["id"], "📋 Building posting guide...")
+                    try:
+                        from src.video_agent import skill_copy_script
+                        script_msg = skill_copy_script(current_video.get("props", {}), current_posts)
+                        _send_message(token, expected_chat_id, script_msg)
+                    except Exception as e:
+                        _send_message(token, expected_chat_id, f"⚠️ Script failed: {type(e).__name__}")
                     continue
 
                 # ── View platform ─────────────────────────────────
