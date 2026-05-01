@@ -1,6 +1,22 @@
 anthropic>=0.50.0
+fal-client>=0.13.0
 httpx>=0.27.0,<0.29.0
 requests==2.31.0
 python-dotenv==1.0.0
 pytz==2024.1
 yt-dlp>=2024.1.0
+yfinance>=0.2.40
+edge-tts>=6.1.0
+matplotlib>=3.7.0
+# Voice synthesis (local only — not installed in CI):
+# pip install TTS              ← Coqui XTTS v2, free voice cloning, ~2GB model download
+# pip install openai-whisper   ← local speech-to-text for auto-captions + language detection
+
+# Animated data visualizations (local only — heavy deps):
+# pip install manim            ← 3Blue1Brown animation engine, animated charts/explainers
+#   also requires: brew install cairo pkg-config (macOS)
+
+# Remotion JS additions (already installed):
+# gsap                         ← cinematic text animations (split, typewriter, glitch, counter)
+# @lottiefiles/dotlottie-react ← Lottie motion graphics in Remotion compositions
+#   Drop .lottie files into: fincare-video/public/animations/

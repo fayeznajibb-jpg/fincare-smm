@@ -114,8 +114,30 @@ def run():
             )
             sys.exit(1)
 
+        # ── Step 2b: Quality gate — score + auto-improve before briefing ──
+        logger.info("STEP 2b: Running quality gate...")
+        qc_summary = ""
+        try:
+            from src.quality_gate import run as quality_gate
+            posts, qc_summary = quality_gate(topic, posts)
+        except Exception as e:
+            logger.warning(f"Quality gate failed (non-critical): {type(e).__name__}")
+
         # Save draft as backup
         save_draft(topic, posts)
+
+    # ── Step 2c: Auto-generate image (best-effort) ────────────────────────
+    logger.info("STEP 2c: Generating post image...")
+    image_path = None
+    try:
+        from src.image_generator import generate_post_image
+        image_path = generate_post_image(topic, posts, "linkedin_company")
+        if image_path:
+            logger.success(f"Image generated: {image_path}")
+        else:
+            logger.warning("Image generation skipped (no API key or generation failed)")
+    except Exception as e:
+        logger.warning(f"Image generation failed (non-critical): {type(e).__name__}")
 
     # ── Video generation (non-blocking, best-effort) ──────────────
     video_result = {"916": None, "11": None, "thumbnail": None, "props": None, "variants": []}
@@ -125,18 +147,50 @@ def run():
     except Exception as e:
         logger.warning(f"Video agent failed (non-critical): {type(e).__name__}")
 
-    # ── Steps 3 & 4: Approval loop (supports Edit, My Idea, Image) ──
+    # ── Step 3: Send briefing + save session for run_bot.py to handle ──
+    # run_bot.py is always running and owns the getUpdates loop.
+    # main.py just sends the message and saves state — no polling here.
+    logger.info("STEP 3: Sending Telegram briefing...")
+    try:
+        session_id = send_approval_request(topic, posts, image_path=image_path,
+                                            video_result=video_result,
+                                            qc_summary=qc_summary)
+    except Exception as e:
+        logger.error(f"Telegram send failed: {type(e).__name__}: {str(e)}")
+        sys.exit(1)
+
+    # Save full session state so run_bot.py can handle callbacks
+    session_data = {
+        "session_id":   session_id,
+        "topic":        topic,
+        "posts":        posts,
+        "image_path":   image_path,
+        "video_result": video_result,
+        "created_at":   datetime.now().isoformat(),
+        "status":       "pending",
+    }
+    os.makedirs("drafts", exist_ok=True)
+    session_path = f"drafts/session_{session_id}.json"
+    with open(session_path, "w") as f:
+        json.dump(session_data, f, indent=2, default=str)
+    logger.success(f"Session saved: {session_path}")
+    logger.success("Briefing sent — run_bot.py will handle approval callbacks.")
+    logger.info("main.py exiting. Bot stays running in background.")
+    sys.exit(0)
+
+    # ── Legacy approval loop below — kept for reference, never reached ──
     timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))
     MAX_REWRITES = 3
     rewrites = 0
     approved = False
-    image_path = None        # Set when user attaches an image
-    selected_platforms = None  # None = all platforms
+    image_path = None
+    selected_platforms = None
 
     while rewrites <= MAX_REWRITES:
         logger.info(f"STEP 3: Sending for Telegram approval (attempt {rewrites + 1})...")
         try:
-            session_id = send_approval_request(topic, posts, image_path)
+            session_id = send_approval_request(topic, posts, image_path,
+                                                video_result=video_result)
         except Exception as e:
             logger.error(f"Telegram send failed: {type(e).__name__}: {str(e)}")
             sys.exit(1)

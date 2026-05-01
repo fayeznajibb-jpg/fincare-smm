@@ -1,72 +1,151 @@
 == FINCARE CONTENT PILLARS ==
-Rotate through these 5 pillars weekly. Each post must belong to exactly one pillar.
-The pillar determines the FORMAT and PURPOSE of the post — not the topic.
+Every day = FINVYON explainer video. All pillars produce Format D (FINVYON 10-scene 60s stickman explainer).
+FINVYON is a CFA charterholder and investment advisor. Content is hardcore finance education —
+real concepts, real companies, real numbers — explained simply. Psychology is a layer, not the foundation.
 
 ════════════════════════════════════════
-PILLAR 1 — STORY (Monday)
+PILLAR 1 — FUNDAMENTALS (Monday)
 ════════════════════════════════════════
-PURPOSE: Build emotional connection. Make the audience feel seen.
-FORMAT:
-  - Opens with a specific, relatable scenario ("It's Sunday night. Markets open tomorrow...")
-  - Takes the reader through a mini emotional journey
-  - Ends with a reframe or insight
-  - CTA: "Has this happened to you? Drop a comment."
-TONE: Warm, empathetic, personal. Like a friend telling a story.
-WHAT IT LOOKS LIKE: A 3-act micro-story. Setup → Tension → Resolution.
-AVOID: Data overload. This pillar is FEELING first, facts second.
+PURPOSE: Teach one core finance concept from first principles. CFA-level knowledge made simple.
+TOPICS: Time Value of Money, P/E ratio, EPS, ROE, free cash flow, WACC, beta, alpha, Sharpe ratio,
+bond duration, yield curve, dividend yield, book value, compound interest, inflation-adjusted returns.
+VIDEO STRUCTURE:
+  1. FINVYON states the concept in one shocking sentence (hook)
+  2. Defines it in plain English — no jargon
+  3. Shows the formula simply (on whiteboard prop)
+  4. Applies it to a REAL company (Apple, Tesla, Amazon, Saudi Aramco, Nvidia, etc.)
+  5. Explains what the number tells you — the actionable insight
+  6. Fincare Moment: FINVYON pauses → Fincare chat types the question this video answers
+  7. Explains the answer — as if Fincare delivered it
+  8. Shows the common mistake investors make with this concept
+  9. FINVYON relaxed — the payoff of knowing this
+  10. Fincare CTA
+HOOK STYLE: Start with the real-world implication.
+  "Apple's P/E is 28. Is that expensive? Most people don't know how to answer that."
+  "One number tells you if a company is printing money or bleeding out. Most investors ignore it."
+VOICEOVER ARC: Hook (one surprising sentence) → Plain-English definition → Formula/number →
+  Real company example → What it means for YOUR decisions → Fincare CTA
+TONE: CFA professor who actually talks like a human. No dumbing down — simplifying.
+CTA: "Save this. This is what they don't teach you in school."
 
 ════════════════════════════════════════
-PILLAR 2 — DATA (Tuesday)
+PILLAR 2 — NEWS (Tuesday)
 ════════════════════════════════════════
-PURPOSE: Build authority and trust. Educate with numbers that surprise.
-FORMAT:
-  - Opens with the most shocking stat (the "wait, really?" moment)
-  - Unpacks what it means in plain English
-  - Connects the data to a behaviour pattern the reader recognises
-  - CTA: "Save this for the next time you feel the urge to react."
-TONE: Sharp, confident, authoritative. Like a smart analyst who actually explains things.
-WHAT IT LOOKS LIKE: Stat → Context → Implication → Fincare angle.
-AVOID: Dry data dumps. Every number needs a human translation.
+PURPOSE: React to today's real market headline with CFA-level analysis. Not emotion — interpretation.
+TODAY'S NEWS: The researcher will inject the most relevant market headline from today's RSS feeds.
+VIDEO STRUCTURE:
+  1. FINVYON states the headline in plain terms — the hook
+  2. Explains what actually happened (financial mechanics)
+  3. Shows the key metric to watch (whiteboard prop with the number)
+  4. Explains why this matters — the CFA lens
+  5. Shows the emotional reaction most investors are having right now
+  6. Fincare Moment: FINVYON pauses → Fincare chat types "What should I do about [headline]?"
+  7. FINVYON explains the analytical response — calm, data-driven
+  8. Shows what smart money is actually looking at (not the headline)
+  9. FINVYON relaxed — the informed investor's posture
+  10. Fincare CTA
+HOOK STYLE: Name the news + the real question.
+  "Fed raised rates 0.25%. What does that actually mean for your portfolio?"
+  "Nvidia dropped 8% today. Should you panic? Here is what the data says."
+VOICEOVER ARC: What happened → Financial mechanics (why it matters) → Key metric to watch →
+  What most investors get wrong → The CFA perspective → Fincare CTA
+TONE: Calm expert in a noisy room. Analytical, not emotional.
+RECENCY RULE: This pillar MUST use a headline from the last 24 hours. If no fresh headline is available,
+  fall back to a "market pattern" topic (e.g., "Why markets always overreact to Fed announcements").
+CTA: "Follow for CFA-level analysis every time markets move."
 
 ════════════════════════════════════════
-PILLAR 3 — OPINION (Wednesday)
+PILLAR 3 — COMPANY (Wednesday)
 ════════════════════════════════════════
-PURPOSE: Spark debate. Stand for something. Build a point of view.
-FORMAT:
-  - Opens with a bold, slightly controversial statement
-  - Defends the position with evidence
-  - Acknowledges the opposing view fairly
-  - Holds the position anyway
-  - CTA: "Agree or disagree? Tell me below."
-TONE: Direct, opinionated, unapologetic — but never arrogant.
-WHAT IT LOOKS LIKE: "Unpopular opinion: [claim]. Here's why I stand by it."
-AVOID: Wishy-washy hedging. This pillar must take a clear side.
-NOTE: Always frame as observation, never financial advice.
+PURPOSE: Walk through how to analyse a real, well-known company using one key metric.
+TOPICS: P/E ratio analysis, gross margin vs net margin, debt-to-equity, revenue growth rate,
+  free cash flow yield, return on equity, current ratio, EPS growth, price-to-book, EBITDA margins.
+VIDEO STRUCTURE:
+  1. FINVYON names the company + the one number that changes how you see it (hook)
+  2. States the metric plainly — what is it?
+  3. Shows the formula on a whiteboard
+  4. Reveals the actual number for this company
+  5. Compares it to the sector average or a direct competitor
+  6. Fincare Moment: FINVYON pauses → Fincare chat types "Is [company] a good investment?"
+  7. FINVYON explains what a CFA would do with this information
+  8. Shows the red flag or green flag — what the number actually means
+  9. FINVYON relaxed — the informed investor's view
+  10. Fincare CTA
+HOOK STYLE: The number that changes how you see the company.
+  "Nvidia's gross margin is 74%. Here is why that one number matters more than the stock price."
+  "Apple has $162 billion in cash. Here is why that is not as safe as it sounds."
+VOICEOVER ARC: Company + metric → Plain-English definition → How to calculate it →
+  The actual number → Sector comparison → Red flag or green flag → Fincare CTA
+TONE: Analytical mentor. Like a CFA walking you through a real model.
+CTA: "Drop the company you want FINVYON to analyse next."
 
 ════════════════════════════════════════
-PILLAR 4 — QUESTION (Thursday)
+PILLAR 4 — PORTFOLIO (Thursday)
 ════════════════════════════════════════
-PURPOSE: Drive comments and engagement. Start a conversation.
-FORMAT:
-  - Opens with a question that creates self-reflection
-  - Adds a stat or insight that reframes the question
-  - Asks for a genuine response
-  - Keep it SHORT — this is the most concise pillar
-  - CTA: The question itself IS the CTA.
-TONE: Curious, open, conversational. No lecturing.
-WHAT IT LOOKS LIKE: A thought-provoking question + short context + space for the audience to answer.
-AVOID: Rhetorical questions with obvious answers. The question must genuinely invite response.
+PURPOSE: Teach portfolio construction, asset allocation, and risk management. CFA Level I/II concepts made simple.
+TOPICS: Diversification, correlation coefficients, rebalancing strategies, asset class allocation,
+  risk-return tradeoff, Modern Portfolio Theory, dollar-cost averaging, position sizing, hedging basics,
+  the efficient frontier, Sharpe ratio in practice, sector rotation.
+VIDEO STRUCTURE:
+  1. FINVYON states the counterintuitive portfolio truth (hook)
+  2. Explains the concept in one simple sentence
+  3. Shows why most retail portfolios get this wrong (whiteboard)
+  4. Demonstrates with a simple numerical example
+  5. Shows the emotional bias that leads to the mistake
+  6. Fincare Moment: FINVYON pauses → Fincare chat types "How should I build my portfolio?"
+  7. FINVYON explains the CFA rule — the principle a professional would apply
+  8. Shows the simple application: what to do differently
+  9. FINVYON relaxed — the result of a well-constructed portfolio
+  10. Fincare CTA
+HOOK STYLE: The counterintuitive portfolio truth.
+  "Adding a losing asset to your portfolio can actually increase your returns. Here is how."
+  "Most portfolios are not diversified. They just own the same risk in different wrappers."
+VOICEOVER ARC: Hook → The concept → Why retail gets it wrong → The CFA rule → Simple application → Fincare CTA
+TONE: Strategic and precise. Like a wealth manager explaining your own portfolio to you.
+CTA: "Save this. Build your portfolio like a CFA."
 
 ════════════════════════════════════════
-PILLAR 5 — INSIGHT (Friday)
+PILLAR 5 — MINDSET (Friday)
 ════════════════════════════════════════
-PURPOSE: Deliver one powerful, reusable mental model. Something they'll screenshot and save.
-FORMAT:
-  - Opens with the counter-intuitive insight ("Most people think X. The opposite is true.")
-  - Explains the mental model clearly
-  - Shows how to apply it to their investing decisions
-  - Ends with a memorable one-liner they'll repeat
-  - CTA: "Save this. You'll need it next time the market moves."
-TONE: Wise, thoughtful, mentor-like. Like advice from someone who's been through it all.
-WHAT IT LOOKS LIKE: A lesson wrapped in a story. The takeaway should be quotable.
-AVOID: Generic advice. This pillar must deliver a genuinely non-obvious idea.
+PURPOSE: The psychology and discipline behind great investors — backed by CFA research and behavioural finance data.
+TOPICS: Loss aversion, overconfidence bias, recency bias, anchoring, mental accounting,
+  the disposition effect, patience as a strategy, long-term thinking, sunk cost fallacy,
+  narrative fallacy, herding behaviour, confirmation bias in stock picking.
+VIDEO STRUCTURE:
+  1. FINVYON names the specific cognitive bias and its real cost (hook)
+  2. Describes exactly how it plays out for a retail investor
+  3. Shows the data — real study, real percentage (whiteboard)
+  4. Explains why the brain does this — the evolutionary root
+  5. Shows the pattern repeating — the investor trapped in the loop
+  6. Fincare Moment: FINVYON pauses → Fincare chat types "How do I stop [bias name]?"
+  7. FINVYON explains the CFA-trained mindset shift
+  8. Shows the system that removes the emotion from the decision
+  9. FINVYON relaxed — the compounded patience result
+  10. Fincare CTA
+HOOK STYLE: The costly behaviour stated plainly.
+  "The average investor underperforms the S&P by 4.3% every year. Not bad luck. Bad wiring."
+  "You are not bad at investing. Your amygdala is."
+VOICEOVER ARC: The behaviour → The data/cost → Why the brain does it → The CFA approach → The system → Fincare CTA
+TONE: Wise and direct. Old Money meets behavioural science.
+CTA: "Follow for the mindset that separates investors from speculators."
+
+════════════════════════════════════════
+FINVYON CTA RULE — SCENE 10 (ALL PILLARS)
+════════════════════════════════════════
+Scene 10 is ALWAYS:
+  Visual: FINVYON holds golden key toward camera, encouraging nod.
+  Voiceover: rotate through these exact CTAs based on topic:
+    - "Download AIFinCare. Let the AI manage the emotion, you manage the vision."
+    - "AIFinCare removes the emotional guesswork. Link in bio."
+    - "This is what AIFinCare was built for. Try it free."
+    - "Your amygdala is expensive. AIFinCare is not. Link in bio."
+
+════════════════════════════════════════
+FINCARE MOMENT RULE — SCENE 6 (ALL PILLARS)
+════════════════════════════════════════
+Scene 6 is ALWAYS the Fincare product demo moment:
+  Visual: FINVYON in a thoughtful "thinking" pose (one hand on chin) + Fincare chat UI overlay.
+  The chat UI shows the core question this video answers, typing itself character by character.
+  Voiceover: "I asked AIFinCare the same question." (EXACT — never change this line)
+  This is the narrative pivot: problem → FINVYON consults Fincare → solution lands in Scene 7.
+  It is NOT an ad break. It is FINVYON consulting a tool he trusts.
