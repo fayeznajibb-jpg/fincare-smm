@@ -147,9 +147,7 @@ def run():
     except Exception as e:
         logger.warning(f"Video agent failed (non-critical): {type(e).__name__}")
 
-    # ── Step 3: Send briefing + save session for run_bot.py to handle ──
-    # run_bot.py is always running and owns the getUpdates loop.
-    # main.py just sends the message and saves state — no polling here.
+    # ── Step 3: Send briefing ──────────────────────────────────────────
     logger.info("STEP 3: Sending Telegram briefing...")
     try:
         session_id = send_approval_request(topic, posts, image_path=image_path,
@@ -159,26 +157,30 @@ def run():
         logger.error(f"Telegram send failed: {type(e).__name__}: {str(e)}")
         sys.exit(1)
 
-    # Save full session state so run_bot.py can handle callbacks
-    session_data = {
-        "session_id":   session_id,
-        "topic":        topic,
-        "posts":        posts,
-        "image_path":   image_path,
-        "video_result": video_result,
-        "created_at":   datetime.now().isoformat(),
-        "status":       "pending",
-    }
-    os.makedirs("drafts", exist_ok=True)
-    session_path = f"drafts/session_{session_id}.json"
-    with open(session_path, "w") as f:
-        json.dump(session_data, f, indent=2, default=str)
-    logger.success(f"Session saved: {session_path}")
-    logger.success("Briefing sent — run_bot.py will handle approval callbacks.")
-    logger.info("main.py exiting. Bot stays running in background.")
-    sys.exit(0)
+    # ── Local mode: save session for run_bot.py and exit ──────────────
+    # run_bot.py is always running locally and owns the getUpdates loop.
+    # In GitHub Actions there's no local bot, so we fall through to the
+    # blocking approval loop below instead.
+    if not os.getenv("GITHUB_ACTIONS"):
+        session_data = {
+            "session_id":   session_id,
+            "topic":        topic,
+            "posts":        posts,
+            "image_path":   image_path,
+            "video_result": video_result,
+            "created_at":   datetime.now().isoformat(),
+            "status":       "pending",
+        }
+        os.makedirs("drafts", exist_ok=True)
+        session_path = f"drafts/session_{session_id}.json"
+        with open(session_path, "w") as f:
+            json.dump(session_data, f, indent=2, default=str)
+        logger.success(f"Session saved: {session_path}")
+        logger.success("Briefing sent — run_bot.py will handle approval callbacks.")
+        logger.info("main.py exiting. Bot stays running in background.")
+        sys.exit(0)
 
-    # ── Legacy approval loop below — kept for reference, never reached ──
+    # ── CI mode (GitHub Actions): blocking approval loop ──────────────
     timeout_hours = float(os.getenv("APPROVAL_TIMEOUT_HOURS", "4"))
     MAX_REWRITES = 3
     rewrites = 0
