@@ -3,7 +3,7 @@ name: Fincare Daily SMM Automation
 on:
   # Runs every day at 8:00 AM UTC (adjust to your timezone)
   schedule:
-    - cron: '0 8 * * 1-5'    # Daily SMM pipeline: Mon–Fri 8am UTC
+    - cron: '0 8 * * *'      # Daily SMM pipeline: every day 8am UTC
     - cron: '0 9 * * 1-5'    # Performance stats check: Mon–Fri 9am UTC
     - cron: '0 7 * * 1'      # Competitor spy: Monday 7am UTC
     - cron: '0 10,14,18 * * 1-5'  # Comment reply bot: 3x daily weekdays
