@@ -7,8 +7,8 @@ Falls back to ANTHROPIC_API_KEY if Gemini key is absent.
 import os
 
 _GEMINI_MODELS = {
-    "sonnet": "gemini-2.0-flash",
-    "haiku":  "gemini-2.0-flash-lite",
+    "sonnet": "gemini-2.5-flash",
+    "haiku":  "gemini-2.5-flash",
 }
 _ANTHROPIC_MODELS = {
     "sonnet": "claude-sonnet-4-6",
