@@ -8,7 +8,7 @@ Uses Claude Haiku for personalization. ~$0.001 per script.
 
 import os
 import json
-import anthropic
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("tiktok_script")
@@ -29,11 +29,6 @@ def generate_tiktok_script(topic: dict, tiktok_caption: str) -> dict:
     Generates a full TikTok video script using Claude Haiku.
     Returns structured script dict with spoken words + on-screen text per section.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.warning("No ANTHROPIC_API_KEY — using caption as fallback script.")
-        return _fallback_script(topic, tiktok_caption)
-
     pillar  = topic.get("content_pillar", "STORY")
     trigger = topic.get("emotional_trigger", "anxiety")
     hook    = topic.get("hook", "")
@@ -90,14 +85,8 @@ Rules:
 - Sound like a real person talking, not a corporate script
 - The hook must create immediate recognition or curiosity"""
 
-    client = anthropic.Anthropic(api_key=api_key)
     try:
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=800,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = message.content[0].text.strip()
+        raw = call_llm("", prompt, tier="haiku", max_tokens=800).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

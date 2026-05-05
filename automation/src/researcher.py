@@ -694,11 +694,7 @@ def _analyze_headlines_with_claude(headlines: list[dict], pillar: str,
     Uses Claude (Topic Scout) to pick the most emotionally resonant headline
     and generate a full behavioral finance content brief.
     """
-    import anthropic
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return None
+    from utils.llm import call_llm
 
     today = datetime.now().strftime("%A, %B %d, %Y")
 
@@ -747,14 +743,10 @@ def _analyze_headlines_with_claude(headlines: list[dict], pillar: str,
     )
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        message = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1500,
-            system=_TOPIC_SCOUT_SYSTEM.replace("{content_pillar}", pillar),
-            messages=[{"role": "user", "content": user_message}]
-        )
-        raw = message.content[0].text.strip()
+        raw = call_llm(
+            _TOPIC_SCOUT_SYSTEM.replace("{content_pillar}", pillar),
+            user_message, tier="sonnet", max_tokens=1500,
+        ).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

@@ -241,11 +241,11 @@ Return ONLY raw JSON. No preamble, no markdown. Start with { and end with }."""
 
 def _build_prompt(topic: dict, platform: str, posts: dict = None) -> dict | None:
     """
-    Uses Claude (Visual Director) to generate a cinematic image prompt.
+    Uses LLM (Visual Director) to generate a cinematic image prompt.
     Returns a dict with image_prompt, negative_prompt, and api_parameters.
-    Falls back to template-based prompt if Claude is unavailable.
+    Falls back to template-based prompt if no LLM key is available.
     """
-    import anthropic
+    from utils.llm import call_llm
 
     pillar   = topic.get("content_pillar", "STORY")
     trigger  = topic.get("emotional_trigger", "anxiety")
@@ -280,11 +280,9 @@ def _build_prompt(topic: dict, platform: str, posts: dict = None) -> dict | None
         "threads_post": "threads",
     }.get(platform, platform)
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if api_key and post_text:
+    if post_text:
         try:
-            client = anthropic.Anthropic(api_key=api_key)
-            # Resolve platform-specific values upfront so Claude doesn't pick from pipe-separated options
+            # Resolve platform-specific values upfront so the LLM doesn't pick from pipe-separated options
             fal_size_for_platform = {
                 "linkedin": "landscape_16_9",
                 "instagram": "square_hd",
@@ -336,13 +334,7 @@ def _build_prompt(topic: dict, platform: str, posts: dict = None) -> dict | None
                 '  "creative_direction_note": "one sentence for the content team"\n'
                 '}}'
             )
-            resp = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=1000,
-                system=_VISUAL_DIRECTOR_SYSTEM,
-                messages=[{"role": "user", "content": user_message}]
-            )
-            raw = resp.content[0].text.strip()
+            raw = call_llm(_VISUAL_DIRECTOR_SYSTEM, user_message, tier="haiku", max_tokens=1000).strip()
             # Strip markdown code fences if present
             if raw.startswith("```"):
                 raw = raw.split("```")[1]

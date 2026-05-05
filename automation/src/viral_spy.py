@@ -18,8 +18,8 @@ import os
 import json
 import base64
 import subprocess
-import anthropic
 from datetime import datetime
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("viral_spy")
@@ -107,40 +107,16 @@ def _fetch_metadata(handle: str, url: str, platform: str) -> list[dict]:
         return []
 
 
-def _analyse_thumbnail(video: dict, client: anthropic.Anthropic) -> dict:
+def _analyse_thumbnail(video: dict) -> dict:
     """
-    Sends thumbnail to Claude Haiku Vision for hook pattern analysis.
-    Returns analysis dict. Falls back to caption-only analysis if no thumbnail.
+    Analyses a viral video for hook pattern. Text-only analysis (caption + metadata).
     """
-    thumb_path = video.get("thumbnail_path", "")
-    image_data = None
-
-    if thumb_path and os.path.exists(thumb_path):
-        try:
-            with open(thumb_path, "rb") as f:
-                image_data = base64.standard_b64encode(f.read()).decode("utf-8")
-        except Exception:
-            pass
-
-    content = []
-    if image_data:
-        content.append({
-            "type": "image",
-            "source": {
-                "type": "base64",
-                "media_type": "image/jpeg",
-                "data": image_data,
-            }
-        })
-
     caption_text = video.get("description") or video.get("title") or ""
     prompt = f"""You are analysing a viral finance TikTok/Instagram video for a social media team.
 
 Caption/title: "{caption_text[:200]}"
 Duration: {video.get('duration', 0)} seconds
 Engagement rate: {video.get('engagement_rate', 0):.2f}%
-
-{"Analyse the thumbnail image AND caption." if image_data else "Analyse the caption only (no thumbnail available)."}
 
 Return ONLY a raw JSON object:
 {{
@@ -153,15 +129,8 @@ Return ONLY a raw JSON object:
   "fincare_adaptation": "how Fincare could use this hook style for behavioural finance content"
 }}"""
 
-    content.append({"type": "text", "text": prompt})
-
     try:
-        message = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=400,
-            messages=[{"role": "user", "content": content}]
-        )
-        raw = message.content[0].text.strip()
+        raw = call_llm("", prompt, tier="haiku", max_tokens=400).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -273,12 +242,6 @@ def run_viral_spy():
     Main entry point. Called by GitHub Actions every Monday at 6am UTC.
     Fetches metadata → analyses thumbnails → saves intel file.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        logger.error("ANTHROPIC_API_KEY not set — cannot run Vision analysis.")
-        return
-
-    client = anthropic.Anthropic(api_key=api_key)
     os.makedirs(THUMBNAIL_DIR, exist_ok=True)
     os.makedirs("logs", exist_ok=True)
 
@@ -300,7 +263,7 @@ def run_viral_spy():
     # Analyse each with Claude Haiku Vision
     for i, video in enumerate(all_videos):
         logger.step(f"Analysing {i+1}/{len(all_videos)}: @{video['handle']} ({video['platform']})...")
-        video["analysis"] = _analyse_thumbnail(video, client)
+        video["analysis"] = _analyse_thumbnail(video)
 
     # Build weekly brief
     brief = _build_viral_brief(all_videos)

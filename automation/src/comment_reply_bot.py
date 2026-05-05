@@ -10,8 +10,8 @@ import os
 import json
 import time
 import requests
-import anthropic
 from datetime import datetime, timedelta
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("comment_reply_bot")
@@ -121,10 +121,7 @@ def save_pending_replies(pending: list):
 # ─────────────────────────────────────────
 
 def draft_reply(comment_text: str) -> str:
-    """Uses Claude Haiku to draft a reply. Falls back to template on error."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return _template_reply(comment_text)
+    """Uses LLM to draft a reply. Falls back to template on error."""
 
     prompt = f"""You are the Fincare social media manager replying to a LinkedIn comment.
 Fincare is an AI investing co-pilot that helps investors master their emotions.
@@ -143,13 +140,7 @@ Write a reply that:
 Return only the reply text — no quotes, no labels."""
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=150,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return msg.content[0].text.strip()
+        return call_llm("", prompt, tier="haiku", max_tokens=150).strip()
     except Exception as e:
         logger.warning(f"Reply draft failed: {type(e).__name__} — using template.")
         return _template_reply(comment_text)

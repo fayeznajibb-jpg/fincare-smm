@@ -18,7 +18,7 @@ Non-blocking — failures return original posts.
 
 import os
 import json
-import anthropic
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("quality_gate")
@@ -141,12 +141,6 @@ Threads Post (HARD LIMIT: 500 characters — COUNT THIS CAREFULLY):
 
 def score_post(post_text: str, platform: str, topic: dict) -> dict:
     """Score a single post. Returns dict with scores and reasoning."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return {}
-
-    client = anthropic.Anthropic(api_key=api_key)
-
     prompt = f"""You are a strict quality control manager for Fincare's social media.
 Your job is to enforce high standards — only excellent content gets through.
 
@@ -185,12 +179,7 @@ Return ONLY raw JSON:
 }}"""
 
     try:
-        resp = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = resp.content[0].text.strip()
+        raw = call_llm("", prompt, tier="sonnet", max_tokens=300).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -203,12 +192,6 @@ Return ONLY raw JSON:
 
 def rewrite_weak_post(post_text: str, platform: str, topic: dict, score: dict, posts: dict) -> str:
     """Rewrites a post that scored below threshold. Returns improved version."""
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return post_text
-
-    client = anthropic.Anthropic(api_key=api_key)
-
     rules = PLATFORM_REWRITE_RULES.get(platform, "")
     weak  = score.get("weakest_dimension", "unknown")
     fix   = score.get("specific_improvement", "improve overall quality")
@@ -263,12 +246,7 @@ REWRITE REQUIREMENTS:
 Return ONLY the rewritten post text. No explanation. No JSON. No preamble."""
 
     try:
-        resp = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1500,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        improved = resp.content[0].text.strip()
+        improved = call_llm("", prompt, tier="sonnet", max_tokens=1500).strip()
         logger.success(f"{platform}: rewritten (fixed: {weak})")
         return improved
     except Exception as e:

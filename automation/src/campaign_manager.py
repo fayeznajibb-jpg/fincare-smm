@@ -17,8 +17,8 @@ you approve it, and it sits waiting until that date.
 
 import os
 import json
-import anthropic
 from datetime import datetime, date
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("campaign_manager")
@@ -106,8 +106,6 @@ def write_campaign_posts(name: str, campaign_date: str) -> tuple[dict, dict]:
     Returns (topic_dict, posts_dict) — same structure as the daily pipeline.
     Cost: ~$0.002 per campaign (Haiku).
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-
     # Build the topic dict
     topic = {
         "topic":           name,
@@ -120,10 +118,6 @@ def write_campaign_posts(name: str, campaign_date: str) -> tuple[dict, dict]:
         "is_campaign":     True,
         "campaign_date":   campaign_date,
     }
-
-    if not api_key:
-        logger.warning("No API key — using placeholder campaign posts.")
-        return topic, _placeholder_posts(name)
 
     prompt = f"""You are the social media copywriter for Fincare (aifincare.com — AI investing co-pilot).
 
@@ -147,13 +141,7 @@ Return ONLY raw JSON with these exact keys:
 }}"""
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=2000,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = msg.content[0].text.strip()
+        raw = call_llm("", prompt, tier="haiku", max_tokens=2000).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):

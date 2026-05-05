@@ -1,6 +1,6 @@
 import os
 import json
-import anthropic
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 from utils.validators import validate_post_lengths, sanitize_content
 from src.trending_audio import get_tiktok_context
@@ -16,10 +16,6 @@ def write_posts(topic: dict) -> dict:
     Returns a dict with posts for all platforms.
     """
     logger.step(f"Writing posts for topic: {topic['topic']}")
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
 
     # Load brand voice, hook library, and content pillars
     base = os.path.join(os.path.dirname(__file__), '..', 'prompts')
@@ -340,17 +336,8 @@ def write_posts(topic: dict) -> dict:
         "- Return ONLY raw JSON"
     )
 
-    client = anthropic.Anthropic(api_key=api_key)
-
-    logger.step("Calling Elite Writer (Claude API) to write posts...")
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=7000,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
-    )
-
-    raw_response = message.content[0].text.strip()
+    logger.step("Calling Elite Writer to write posts...")
+    raw_response = call_llm(system_prompt, user_message, tier="sonnet", max_tokens=7000).strip()
 
     # Strip markdown code block if present
     if raw_response.startswith("```"):
@@ -441,10 +428,6 @@ def rewrite_posts(topic: dict, posts: dict, feedback: str) -> dict:
     """
     logger.step(f"Rewriting posts based on feedback: {feedback[:80]}")
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
-
     base = os.path.join(os.path.dirname(__file__), '..', 'prompts')
     with open(os.path.join(base, 'brand_voice.txt'), 'r', encoding='utf-8') as f:
         brand_voice = f.read()
@@ -498,15 +481,7 @@ User feedback: {feedback}
 
 Apply the feedback and return all posts in the same JSON format."""
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=4000,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_llm(system_prompt, user_message, tier="sonnet", max_tokens=4000).strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -528,10 +503,6 @@ def write_posts_from_idea(idea_text: str) -> tuple[dict, dict]:
     """
     logger.step(f"Writing posts from user idea: {idea_text[:80]}")
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
-
     voice_path = os.path.join(os.path.dirname(__file__), '..', 'prompts', 'brand_voice.txt')
     with open(voice_path, 'r', encoding='utf-8') as f:
         brand_voice = f.read()
@@ -549,14 +520,7 @@ Turn this into a structured topic for Fincare's social media. Return ONLY raw JS
   "why_today": "why this resonates right now (1-2 sentences)"
 }}"""
 
-    client = anthropic.Anthropic(api_key=api_key)
-    topic_resp = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=400,
-        messages=[{"role": "user", "content": topic_message}]
-    )
-
-    raw_topic = topic_resp.content[0].text.strip()
+    raw_topic = call_llm("", topic_message, tier="haiku", max_tokens=400).strip()
     if raw_topic.startswith("```"):
         raw_topic = raw_topic.split("```")[1]
         if raw_topic.startswith("json"):
@@ -578,10 +542,6 @@ def rewrite_single_platform(topic: dict, posts: dict, platform: str, feedback: s
     Called when user taps ✏️ Edit This on a specific platform view.
     """
     logger.step(f"Rewriting {platform} post with feedback: {feedback[:80]}")
-
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY is not set.")
 
     # Map display platform name → actual posts dict key
     PLATFORM_KEY_MAP = {
@@ -634,15 +594,7 @@ User feedback: {feedback}
 
 Apply the feedback. Keep Fincare voice. Return JSON: {{"{post_key}": "rewritten post here"}}"""
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-sonnet-4-6",
-        max_tokens=1500,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}]
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_llm(system_prompt, user_message, tier="sonnet", max_tokens=1500).strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):

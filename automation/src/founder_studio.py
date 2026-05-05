@@ -29,7 +29,7 @@ import json
 import subprocess
 import asyncio
 from datetime import datetime
-import anthropic
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("founder_studio")
@@ -514,10 +514,6 @@ def skill_select_graphics(props: dict, video_format: str, chart_data: dict | Non
 
     Returns VisualDirections dict consumed by the rendering pipeline.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return _default_visual_directions(video_format, chart_data)
-
     hook    = props.get("hook", "")
     insight = props.get("insight", "")
     trigger = props.get("trigger", "anxiety")
@@ -570,13 +566,7 @@ Return ONLY this JSON:
 }}"""
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = msg.content[0].text.strip()
+        raw = call_llm("", prompt, tier="sonnet", max_tokens=300).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1].lstrip("json").strip()
         directions = json.loads(raw)
@@ -978,11 +968,6 @@ def skill_parse_caption_instructions(caption: str) -> dict:
     if not caption or not caption.strip():
         return defaults
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        # Fallback: manual keyword scan
-        return _parse_caption_manual(caption, defaults)
-
     prompt = f"""Extract editing instructions from this video caption written by a social media founder.
 Caption: "{caption}"
 
@@ -1013,13 +998,7 @@ Rules:
 - "pip"/"corner"/"face in corner" → pip: true"""
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        msg = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=300,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = msg.content[0].text.strip()
+        raw = call_llm("", prompt, tier="haiku", max_tokens=300).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1].lstrip("json").strip()
         parsed = json.loads(raw)

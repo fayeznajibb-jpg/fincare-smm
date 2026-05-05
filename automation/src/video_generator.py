@@ -15,8 +15,8 @@ Remotion render: free (Node.js subprocess, ~2–4 min on GitHub Actions)
 import os
 import json
 import subprocess
-import anthropic
 from datetime import datetime
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("video_generator")
@@ -44,10 +44,6 @@ def _build_video_props(topic: dict, viral_intel: dict | None) -> dict:
     Uses viral intel to inform hook style.
     Returns a dict with: hook, stat, topic, insight, ctaText, pillar, trigger.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY not set.")
-
     pillar  = topic.get("content_pillar", "STORY")
     trigger = topic.get("emotional_trigger", PILLAR_TO_TRIGGER_COLORS.get(pillar, "anxiety"))
 
@@ -93,14 +89,7 @@ Rules:
 - Always behavioural — about the investor's psychology, not stock tips
 - ctaText should feel empowering, not alarming"""
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=300,
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_llm("", prompt, tier="haiku", max_tokens=300).strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):

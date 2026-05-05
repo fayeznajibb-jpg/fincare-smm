@@ -25,8 +25,8 @@ All skills are non-fatal — errors are caught and logged.
 import os
 import json
 import subprocess
-import anthropic
 from datetime import datetime
+from utils.llm import call_llm
 from utils.logger import SecureLogger
 
 logger = SecureLogger("video_agent")
@@ -283,10 +283,6 @@ def skill_generate_props(
     constrained by the Researcher's brief. The stat, real companies, CFA concept,
     and teaching example cannot be re-invented by the prop generator.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY not set.")
-
     pillar  = topic.get("content_pillar", "FUNDAMENTALS")
     trigger = topic.get("emotional_trigger", PILLAR_TO_TRIGGER.get(pillar, "curiosity"))
 
@@ -483,14 +479,7 @@ Return ONLY a raw JSON array of {n} objects:
     # — needs significantly more tokens than the other formats.
     max_tokens = 3000 if video_format == "D" else 1200
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=max_tokens,
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    raw = message.content[0].text.strip()
+    raw = call_llm("", prompt, tier="haiku", max_tokens=max_tokens).strip()
     if raw.startswith("```"):
         raw = raw.split("```")[1]
         if raw.startswith("json"):
@@ -540,12 +529,7 @@ CFA Concept: {cfa_concept}
   "rank_score": 8.0,
   "rank_reasoning": "fallback single variant"
 }}]"""
-            repair_msg = client.messages.create(
-                model="claude-haiku-4-5-20251001",
-                max_tokens=1000,
-                messages=[{"role": "user", "content": simple_prompt}]
-            )
-            repair_raw = repair_msg.content[0].text.strip()
+            repair_raw = call_llm("", simple_prompt, tier="haiku", max_tokens=1000).strip()
             if repair_raw.startswith("```"):
                 repair_raw = repair_raw.split("```")[1]
                 if repair_raw.startswith("json"):
@@ -1208,10 +1192,6 @@ def skill_generate_voiceover_script(props: dict, posts: dict) -> str:
 
     Returns: plain text with [PAUSE] markers, ~280-320 words.
     """
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        raise EnvironmentError("ANTHROPIC_API_KEY not set.")
-
     hook    = props.get("hook", "")
     insight = props.get("insight", "")
     cta     = props.get("ctaText", "")
@@ -1250,14 +1230,7 @@ Rules:
 - Never say buy/sell/hold or give financial advice
 - Output ONLY 10 lines, one per scene, no labels or numbers"""
 
-    client = anthropic.Anthropic(api_key=api_key)
-    message = client.messages.create(
-        model="claude-haiku-4-5-20251001",
-        max_tokens=500,
-        messages=[{"role": "user", "content": prompt}]
-    )
-
-    script = message.content[0].text.strip()
+    script = call_llm("", prompt, tier="haiku", max_tokens=500).strip()
     logger.success(f"Voiceover script generated: {len(script.split())} words")
     return script
 
@@ -1893,10 +1866,6 @@ def skill_generate_scenes(topic: dict, props: dict, scene_voiceovers: list | Non
     """
     import hashlib
 
-    api_key = os.getenv("ANTHROPIC_API_KEY")
-    if not api_key:
-        return []
-
     pillar = topic.get("content_pillar", "FUNDAMENTALS").upper()
 
     # Rotating CTA for Scene 10 — deterministic across sessions
@@ -1999,13 +1968,7 @@ Return raw JSON array of exactly 10 objects. Each object:
 No voiceover field. No markdown. No explanation."""
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        resp = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=2500,
-            messages=[{"role": "user", "content": prompt}]
-        )
-        raw = resp.content[0].text.strip()
+        raw = call_llm("", prompt, tier="haiku", max_tokens=2500).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"):
@@ -2359,7 +2322,6 @@ def skill_generate_scene_images(topic: dict, posts: dict, props: dict, ts: str, 
         return {**rel_paths, **video_paths}
 
     # ── FORMAT B/A/E: Cinematic dark background, 4 scenes ────────────────────
-    api_key   = os.getenv("ANTHROPIC_API_KEY")
     hook      = props.get("hook", topic.get("hook", ""))
     stat      = props.get("stat", topic.get("key_stat", ""))
     insight   = props.get("insight", topic.get("angle", ""))
@@ -2381,12 +2343,7 @@ Scene 3 (Insight): CLARITY — revelation teal light | Scene 4 (CTA): CALM — O
 Return ONLY JSON: {{"scene1_hook":"...","scene2_stat":"...","scene3_insight":"...","scene4_cta":"..."}}"""
 
     try:
-        client = anthropic.Anthropic(api_key=api_key)
-        resp   = client.messages.create(
-            model="claude-haiku-4-5-20251001", max_tokens=600,
-            messages=[{"role": "user", "content": prompt_request}]
-        )
-        raw = resp.content[0].text.strip()
+        raw = call_llm("", prompt_request, tier="haiku", max_tokens=600).strip()
         if raw.startswith("```"):
             raw = raw.split("```")[1]
             if raw.startswith("json"): raw = raw[4:]
