@@ -21,17 +21,39 @@ _RETRY_DELAYS = [15, 35, 60]  # seconds between retries on 503/429
 
 def call_llm(system: str, prompt: str, tier: str = "sonnet",
              max_tokens: int = 4096) -> str:
-    """Call the best available LLM. Returns the response text."""
-    gemini_key    = os.getenv("GEMINI_API_KEY")
+    """Call the best available LLM. Anthropic first, Gemini as fallback."""
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    gemini_key    = os.getenv("GEMINI_API_KEY")
 
+    # ── Primary: Anthropic ────────────────────────────────────────────
+    if anthropic_key:
+        try:
+            import anthropic
+            client = anthropic.Anthropic(api_key=anthropic_key)
+            msg = client.messages.create(
+                model=_ANTHROPIC_MODELS[tier],
+                max_tokens=max_tokens,
+                system=system,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            return msg.content[0].text
+        except Exception as e:
+            # Credit exhausted or hard error — fall through to Gemini
+            if gemini_key:
+                import logging
+                logging.getLogger("llm").warning(
+                    f"Anthropic failed ({type(e).__name__}) — falling back to Gemini."
+                )
+            else:
+                raise
+
+    # ── Fallback: Gemini ──────────────────────────────────────────────
     if gemini_key:
         import google.genai as genai
         import google.genai.types as genai_types
         client = genai.Client(api_key=gemini_key)
         config = genai_types.GenerateContentConfig(
             max_output_tokens=max_tokens,
-            # Disable thinking to get clean output (no reasoning preamble before JSON)
             thinking_config=genai_types.ThinkingConfig(thinking_budget=0),
         )
         if system:
@@ -50,26 +72,12 @@ def call_llm(system: str, prompt: str, tier: str = "sonnet",
                 return resp.text
             except Exception as e:
                 last_err = e
-                err_str = str(e)
-                # Retry on transient server errors and rate limits
-                if any(x in err_str for x in ("503", "UNAVAILABLE", "overloaded", "429", "RESOURCE_EXHAUSTED")):
+                if any(x in str(e) for x in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")):
                     if attempt < len(_RETRY_DELAYS):
                         continue
                 raise
         raise last_err
 
-    if anthropic_key:
-        import anthropic
-        client = anthropic.Anthropic(api_key=anthropic_key)
-        msg = client.messages.create(
-            model=_ANTHROPIC_MODELS[tier],
-            max_tokens=max_tokens,
-            system=system,
-            messages=[{"role": "user", "content": prompt}],
-        )
-        return msg.content[0].text
-
     raise EnvironmentError(
-        "No LLM key found. Add GEMINI_API_KEY (free at aistudio.google.com) "
-        "or ANTHROPIC_API_KEY to your .env file."
+        "No LLM key found. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to your .env file."
     )
