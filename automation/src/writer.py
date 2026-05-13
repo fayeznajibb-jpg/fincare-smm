@@ -9,7 +9,32 @@ from src.hashtag_intel import get_all_hashtags
 logger = SecureLogger("writer")
 
 
-def write_posts(topic: dict) -> dict:
+def _build_viral_context_section(viral_context: dict | None) -> str:
+    if not viral_context or not viral_context.get("top_patterns"):
+        return ""
+    hooks = "\n".join(f"  - {h}" for h in viral_context["top_patterns"][:3])
+    trigger = viral_context.get("top_trigger", "curiosity")
+    fmt = viral_context.get("best_format", "talking_head")
+    adaptation = viral_context.get("fincare_adaptation", "")
+    section = (
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        "WHAT'S VIRAL THIS WEEK (competitor intelligence — use this)\n"
+        "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+        f"Top hook patterns working on TikTok/Instagram in finance right now:\n{hooks}\n"
+        f"Dominant emotional trigger: {trigger}\n"
+        f"Best-performing format: {fmt}\n"
+    )
+    if adaptation:
+        section += f"Fincare adaptation note: {adaptation}\n"
+    section += (
+        "INSTRUCTION: Bias your TikTok Scene 1 and LinkedIn hook toward the patterns above. "
+        "Use the dominant emotional trigger as the engine of this post. "
+        "Do not copy verbatim — apply the pattern to our specific topic and numbers.\n\n"
+    )
+    return section
+
+
+def write_posts(topic: dict, viral_context: dict | None = None) -> dict:
     """
     Takes a researched topic and writes platform-specific posts using Claude.
     Validates character limits and sanitizes all content before returning.
@@ -103,11 +128,15 @@ def write_posts(topic: dict) -> dict:
         "  Line 1 (hook): the counterintuitive observation with the real number.\n"
         "  Paragraph 1 (2-3 short lines): set up the misconception — 'most people think X.'\n"
         "  Paragraph 2 (2-3 short lines): the mechanism, using real_companies and the real number.\n"
+        "    ↳ END paragraph 2 with a save-worthy element: a ratio, formula, or named 3-step framework\n"
+        "      the reader will want to reference again. Example: 'The quick check: FCF yield > 5% = value.'\n"
+        "      The Instagram algorithm rewards saves over likes — give them a reason to save.\n"
         "  Paragraph 3 (2-3 short lines): what a CFA does with this information (the correct_view).\n"
         "  Paragraph 4 (1-2 lines): the takeaway — what the viewer now knows.\n"
         "  CTA from engagement_templates.\n"
         "  Blank line.\n"
-        "  15-20 hashtags from weekly_hashtags.\n"
+        "  15-20 hashtags: 5 high-volume (#investing, #stocks, #finance), 5 medium (#valueinvesting,\n"
+        "  #stockmarket101, #cfaexam), 5 niche (#financeducation, #dividendinvesting, #passiveincome).\n"
         "Hard limit: 2200 chars. Single-line paragraph breaks (scannable). Emojis: max 1-2 per paragraph,\n"
         "only when they replace a word (never decorative).\n"
         "Failure mode to avoid: 'educational' posts with zero actual information. Every paragraph must add a\n"
@@ -131,7 +160,10 @@ def write_posts(topic: dict) -> dict:
         "exact arc. Each line is spoken, so write for the ear, not the eye.\n\n"
         "Hard word limit: 11-13 words per line. This is not a guideline. At +15% speech rate, 13 words is\n"
         "exactly 6 seconds. Over 13 = audio overrun.\n\n"
-        "Scene 1  [Hook]            — Pattern interrupt. Specific number. Not a finance-newsletter opener.\n"
+        "Scene 1  [Hook]            — Pattern interrupt. MUST start with a specific number or stat, not a question.\n"
+        "                             Example: '47% of S&P returns came from just 20 stocks.' NOT 'Did you know stocks are risky?'\n"
+        "                             Scene 1 must end with an implied tension that Scene 2 resolves — this drives the\n"
+        "                             3-second retention signal that feeds the TikTok/Reels algorithm.\n"
         "Scene 2  [Concept]         — Name the CFA concept. Define the key term in-line.\n"
         "Scene 3  [The Number]      — State the key_stat with the real company name.\n"
         "Scene 4  [The Why]         — One sentence: what this number actually means mechanically.\n"
@@ -328,7 +360,8 @@ def write_posts(topic: dict) -> dict:
         f"tiktok_audio_energy: {tiktok_ctx['audio_energy']} — {tiktok_ctx['script_tip']} "
         f"(Sound: search \"{tiktok_ctx['sound_search']}\")\n\n"
         f"weekly_hashtags:\n{weekly_hashtags_summary}\n\n"
-        "CRITICAL REMINDERS:\n"
+        + _build_viral_context_section(viral_context)
+        + "CRITICAL REMINDERS:\n"
         "- NEVER give financial advice or tell people to buy/sell/hold\n"
         "- Use 'aifincare.com' as the CTA link\n"
         "- Threads HARD LIMIT is 500 chars — recount before outputting\n"

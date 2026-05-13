@@ -89,6 +89,8 @@ def run():
     else:
         _campaign_date = None
 
+    viral_context = None
+
     if not campaign:
         # ── Step 1: Research trending topic ───────────────
         logger.info("STEP 1: Researching topic...")
@@ -104,8 +106,13 @@ def run():
 
         # ── Step 2: Write posts ────────────────────────────
         logger.info("STEP 2: Writing posts...")
+        viral_context = load_latest_viral_intel()
+        if viral_context:
+            logger.info(f"Viral context injected: {viral_context.get('top_patterns', [])[:3]}")
+        else:
+            logger.info("No viral intel on file — writing without competitor context")
         try:
-            posts = write_posts(topic)
+            posts = write_posts(topic, viral_context=viral_context)
         except Exception as e:
             logger.error(f"Writing failed: {type(e).__name__}: {str(e)}")
             send_notification(
@@ -142,8 +149,7 @@ def run():
     # ── Video generation (non-blocking, best-effort) ──────────────
     video_result = {"916": None, "11": None, "thumbnail": None, "props": None, "variants": []}
     try:
-        viral_intel = load_latest_viral_intel()
-        video_result = run_video_agent(topic, posts, viral_intel)
+        video_result = run_video_agent(topic, posts, viral_context)
     except Exception as e:
         logger.warning(f"Video agent failed (non-critical): {type(e).__name__}")
 

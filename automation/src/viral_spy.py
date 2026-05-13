@@ -26,17 +26,28 @@ logger = SecureLogger("viral_spy")
 
 VIRAL_ACCOUNTS = {
     "tiktok": [
-        {"handle": "humphreytalks",  "url": "https://www.tiktok.com/@humphreytalks"},
-        {"handle": "andreijikh",     "url": "https://www.tiktok.com/@andreijikh"},
-        {"handle": "grahamstephan",  "url": "https://www.tiktok.com/@grahamstephan"},
-        {"handle": "barebone.ai",    "url": "https://www.tiktok.com/@barebone.ai"},
+        {"handle": "humphreytalks",    "url": "https://www.tiktok.com/@humphreytalks"},
+        {"handle": "andreijikh",       "url": "https://www.tiktok.com/@andreijikh"},
+        {"handle": "grahamstephan",    "url": "https://www.tiktok.com/@grahamstephan"},
+        {"handle": "barebone.ai",      "url": "https://www.tiktok.com/@barebone.ai"},
+        {"handle": "charliechang",     "url": "https://www.tiktok.com/@charliechang"},
+        {"handle": "danielmartensson", "url": "https://www.tiktok.com/@danielmartensson"},
+        {"handle": "calvinrosser",     "url": "https://www.tiktok.com/@calvinrosser"},
+        {"handle": "thefinancetwins",  "url": "https://www.tiktok.com/@thefinancetwins"},
+        {"handle": "investwithjasper", "url": "https://www.tiktok.com/@investwithjasper"},
+        {"handle": "hramsey",          "url": "https://www.tiktok.com/@hramsey"},
     ],
     "instagram": [
-        {"handle": "humphreytalks",  "url": "https://www.instagram.com/humphreytalks/reels/"},
-        {"handle": "andreijikh",     "url": "https://www.instagram.com/andreijikh/reels/"},
-        {"handle": "grahamstephan",  "url": "https://www.instagram.com/grahamstephan/reels/"},
+        {"handle": "humphreytalks",    "url": "https://www.instagram.com/humphreytalks/reels/"},
+        {"handle": "andreijikh",       "url": "https://www.instagram.com/andreijikh/reels/"},
+        {"handle": "grahamstephan",    "url": "https://www.instagram.com/grahamstephan/reels/"},
+        {"handle": "charliechang",     "url": "https://www.instagram.com/charliechang/reels/"},
+        {"handle": "thestockguybrian", "url": "https://www.instagram.com/thestockguybrian/reels/"},
     ],
 }
+
+# Only include videos above this threshold in the viral brief — learn from breakout hits
+VIRAL_THRESHOLD = 20_000
 
 MAX_VIDEOS_PER_ACCOUNT = 5
 THUMBNAIL_DIR = "drafts/viral_downloads"
@@ -152,19 +163,23 @@ Return ONLY a raw JSON object:
 def _build_viral_brief(all_videos: list[dict]) -> dict:
     """
     Aggregates all video analyses to identify the top 3 winning patterns.
-    Returns a brief dict for use in video_generator.py.
+    Returns a brief dict for use in video_generator.py and writer.py.
     """
     if not all_videos:
-        return {"top_pattern": "shock_stat", "top_trigger": "fear", "top_accounts": []}
+        return {"top_pattern": "shock_stat", "top_patterns": [], "top_trigger": "fear", "top_accounts": []}
+
+    # Use only breakout hits for pattern learning; fall back to all if none qualify
+    viral_videos = [v for v in all_videos if v.get("view_count", 0) >= VIRAL_THRESHOLD]
+    analysis_pool = viral_videos if viral_videos else all_videos
 
     # Sort by engagement rate
-    sorted_videos = sorted(all_videos, key=lambda v: v.get("engagement_rate", 0), reverse=True)
+    sorted_videos = sorted(analysis_pool, key=lambda v: v.get("engagement_rate", 0), reverse=True)
     top_3 = sorted_videos[:3]
 
-    # Count hook types and triggers across all videos
+    # Count hook types and triggers across breakout-hit pool
     hook_counts    = {}
     trigger_counts = {}
-    for v in all_videos:
+    for v in analysis_pool:
         analysis = v.get("analysis", {})
         h = analysis.get("hook_type", "unknown")
         t = analysis.get("emotional_trigger", "unknown")
@@ -174,14 +189,25 @@ def _build_viral_brief(all_videos: list[dict]) -> dict:
     top_hook    = max(hook_counts,    key=hook_counts.get)    if hook_counts    else "shock_stat"
     top_trigger = max(trigger_counts, key=trigger_counts.get) if trigger_counts else "fear"
 
+    # Ordered list of top 3 hook types for writer injection
+    top_patterns = sorted(hook_counts, key=hook_counts.get, reverse=True)[:3]
+
     best = sorted_videos[0] if sorted_videos else {}
     best_analysis = best.get("analysis", {})
 
+    top_3_adaptations = [
+        v.get("analysis", {}).get("fincare_adaptation", "")
+        for v in top_3
+    ]
+
     return {
         "top_pattern":          top_hook,
+        "top_patterns":         top_patterns,
         "top_trigger":          top_trigger,
         "top_hook_counts":      hook_counts,
         "top_trigger_counts":   trigger_counts,
+        "fincare_adaptation":   top_3_adaptations[0] if top_3_adaptations else "",
+        "best_format":          best_analysis.get("format", "talking_head"),
         "best_performer": {
             "handle":          best.get("handle", ""),
             "platform":        best.get("platform", ""),
@@ -191,10 +217,7 @@ def _build_viral_brief(all_videos: list[dict]) -> dict:
             "viral_reason":    best_analysis.get("viral_reason", ""),
             "fincare_adaptation": best_analysis.get("fincare_adaptation", ""),
         },
-        "top_3_fincare_adaptations": [
-            v.get("analysis", {}).get("fincare_adaptation", "")
-            for v in top_3
-        ],
+        "top_3_fincare_adaptations": top_3_adaptations,
         "week": datetime.now().strftime("%Y_W%W"),
         "generated_at": datetime.now().isoformat(),
     }
