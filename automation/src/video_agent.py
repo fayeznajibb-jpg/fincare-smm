@@ -2474,84 +2474,11 @@ def run(
     with open(props_path, "w") as f:
         json.dump({"best": best_props, "variants": variants, "topic": topic}, f, indent=2)
 
-    # ── Step 3: Generate AI scene images ─────────────────────────
-    scene_images = {}
-    try:
-        scene_images = skill_generate_scene_images(topic, posts, best_props, ts, video_format=video_format)
-    except Exception as e:
-        logger.warning(f"Scene image generation failed (non-critical): {type(e).__name__}")
-
-    # ── Step 4: Render ────────────────────────────────────────────
+    # ── Step 3: Carousel Slides only pipeline ────────────────────
     final_916 = None
     final_11  = None
 
-    if video_format == "D" and scene_images:
-        # FINVYON 10-scene Explainer — WORKFLOW.md format (60s)
-        finvyon_scenes = []
-        for i in range(1, 11):
-            scene = {
-                "img":       scene_images.get(f"img{i}", "ai_bg/placeholder.jpg"),
-                "voiceover": scene_images.get(f"vo{i}", ""),
-                "type":      scene_images.get(f"type{i}", "standard"),
-            }
-            if scene_images.get(f"vid{i}"):
-                scene["vid"] = scene_images[f"vid{i}"]
-            if scene_images.get(f"fq{i}"):
-                scene["fincareQuestion"] = scene_images[f"fq{i}"]
-            finvyon_scenes.append(scene)
-
-        finvyon_props = {"scenes": finvyon_scenes}
-        try:
-            finvyon_paths = skill_render(finvyon_props, formats=["finvyon_10"], timestamp=ts)
-            final_916 = finvyon_paths.get("finvyon_10")
-            if final_916:
-                logger.success("FINVYON 10-scene explainer render complete.")
-        except Exception as e:
-            logger.warning(f"FINVYON render failed ({type(e).__name__}) — falling back to slideshow.")
-
-    elif scene_images.get("img1"):
-        # Cinematic Slideshow for B/A/E formats
-        slideshow_props = {
-            "hook":    best_props.get("hook", ""),
-            "stat":    best_props.get("stat", ""),
-            "insight": best_props.get("insight", ""),
-            "ctaText": best_props.get("ctaText", "Master your mind"),
-            "topic":   topic.get("topic", ""),
-            "pillar":  topic.get("content_pillar", "STORY"),
-            "img1":    scene_images.get("img1", "ai_bg/placeholder.jpg"),
-            "img2":    scene_images.get("img2", "ai_bg/placeholder.jpg"),
-            "img3":    scene_images.get("img3", "ai_bg/placeholder.jpg"),
-            "img4":    scene_images.get("img4", "ai_bg/placeholder.jpg"),
-            "vid1":    scene_images.get("vid1"),
-            "vid3":    scene_images.get("vid3"),
-        }
-        try:
-            slideshow_paths = skill_render(slideshow_props, video_format="SLIDESHOW", timestamp=ts)
-            final_916 = slideshow_paths.get("slideshow_916")
-            final_11  = slideshow_paths.get("slideshow_11")
-            if final_916:
-                logger.success("Slideshow render complete.")
-        except Exception as e:
-            logger.warning(f"Slideshow render failed ({type(e).__name__}) — falling back to template.")
-
-    # Fallback: render the standard FinCare template
-    # Skip for format D — the carousel video (generated below) is the video output for that format.
-    # Rendering finvyon_10 without scene images produces a black-placeholder video.
-    if not final_916 and video_format != "D":
-        try:
-            render_paths = skill_render(best_props, video_format=video_format, timestamp=ts)
-        except Exception as e:
-            logger.error(f"Render failed: {type(e).__name__}: {str(e)}")
-            render_paths = {"916": None, "11": None}
-
-        final_916 = (render_paths.get("finvyon_10")
-                  or render_paths.get("916")
-                  or render_paths.get("daily_916")
-                  or render_paths.get("news_916"))
-        final_11  = (render_paths.get("11")
-                  or render_paths.get("daily_11"))
-
-    # ── Step 4b: Carousel Slides ──────────────────────────────────
+    # ── Step 4: Carousel Slides → Video ──────────────────────────
     carousel_916 = []
     carousel_11  = []
     if posts.get("carousel_slides"):
@@ -2571,7 +2498,7 @@ def run(
         except Exception as e:
             logger.warning(f"Thumbnail failed (non-critical): {type(e).__name__}")
 
-    # ── Voiceover pipeline (shared by both FINVYON video and carousel video) ──
+    # ── Step 5: Voiceover ─────────────────────────────────────────
     vo_path   = None
     vo_lines  = []
     script    = None
