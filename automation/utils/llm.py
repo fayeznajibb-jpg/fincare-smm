@@ -1,8 +1,8 @@
 """
-Shared LLM wrapper — routes to Gemini (free) or Anthropic (fallback).
+Shared LLM wrapper — Gemini primary (free), Anthropic fallback.
 
 Set GEMINI_API_KEY in .env to use Gemini 2.5 Flash at zero cost.
-Falls back to ANTHROPIC_API_KEY if Gemini key is absent.
+Falls back to ANTHROPIC_API_KEY if Gemini is unavailable or exhausted.
 """
 import os
 import time
@@ -21,33 +21,11 @@ _RETRY_DELAYS = [15, 35, 60]  # seconds between retries on 503/429
 
 def call_llm(system: str, prompt: str, tier: str = "sonnet",
              max_tokens: int = 4096) -> str:
-    """Call the best available LLM. Anthropic first, Gemini as fallback."""
+    """Call the best available LLM. Gemini first (free), Anthropic as fallback."""
     anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     gemini_key    = os.getenv("GEMINI_API_KEY")
 
-    # ── Primary: Anthropic ────────────────────────────────────────────
-    if anthropic_key:
-        try:
-            import anthropic
-            client = anthropic.Anthropic(api_key=anthropic_key)
-            msg = client.messages.create(
-                model=_ANTHROPIC_MODELS[tier],
-                max_tokens=max_tokens,
-                system=system,
-                messages=[{"role": "user", "content": prompt}],
-            )
-            return msg.content[0].text
-        except Exception as e:
-            # Credit exhausted or hard error — fall through to Gemini
-            if gemini_key:
-                import logging
-                logging.getLogger("llm").warning(
-                    f"Anthropic failed ({type(e).__name__}) — falling back to Gemini."
-                )
-            else:
-                raise
-
-    # ── Fallback: Gemini ──────────────────────────────────────────────
+    # ── Primary: Gemini (free tier) ───────────────────────────────────
     if gemini_key:
         import google.genai as genai
         import google.genai.types as genai_types
@@ -75,9 +53,29 @@ def call_llm(system: str, prompt: str, tier: str = "sonnet",
                 if any(x in str(e) for x in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED")):
                     if attempt < len(_RETRY_DELAYS):
                         continue
-                raise
-        raise last_err
+                # Non-retriable Gemini error — fall through to Anthropic
+                break
+        else:
+            raise last_err  # all retries exhausted
+
+        if anthropic_key:
+            import logging
+            logging.getLogger("llm").warning(
+                f"Gemini failed ({type(last_err).__name__}) — falling back to Anthropic."
+            )
+
+    # ── Fallback: Anthropic ───────────────────────────────────────────
+    if anthropic_key:
+        import anthropic
+        client = anthropic.Anthropic(api_key=anthropic_key)
+        msg = client.messages.create(
+            model=_ANTHROPIC_MODELS[tier],
+            max_tokens=max_tokens,
+            system=system,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        return msg.content[0].text
 
     raise EnvironmentError(
-        "No LLM key found. Add ANTHROPIC_API_KEY or GEMINI_API_KEY to your .env file."
+        "No LLM key found. Add GEMINI_API_KEY or ANTHROPIC_API_KEY to your .env file."
     )

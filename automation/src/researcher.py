@@ -11,6 +11,7 @@ import json
 import random
 import urllib.request
 import xml.etree.ElementTree as ET
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from datetime import datetime
 from utils.logger import SecureLogger
 
@@ -80,8 +81,16 @@ def _fetch_company_fundamentals(ticker: str) -> dict | None:
     """
     try:
         import yfinance as yf
-        t    = yf.Ticker(ticker)
-        info = t.info
+
+        def _fetch():
+            return yf.Ticker(ticker).info
+
+        with ThreadPoolExecutor(max_workers=1) as _pool:
+            _future = _pool.submit(_fetch)
+            try:
+                info = _future.result(timeout=10)
+            except FuturesTimeout:
+                raise TimeoutError("yfinance timed out after 10s")
 
         def _pct(val):
             return round(val * 100, 1) if val is not None else None
